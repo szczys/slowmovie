@@ -1,0 +1,9 @@
+wifi_credentials.h
+__pycache__
+frame.png
+frame.xbm
+framecount.json
+*.mkv
+*.mp4
+*.avi
+*.mov

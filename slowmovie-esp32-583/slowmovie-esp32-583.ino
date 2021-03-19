@@ -112,6 +112,7 @@ void callback(char* topic, byte* message, unsigned int length) {
   // Changes the output state according to the message
   if (String(topic) == mqtt_topic) {
     Serial.print("Received a message of length: ");
+    Serial.println(length);
 
     uint8_t header_buf[] = {0,0,0,0,0,0,0,0};
 

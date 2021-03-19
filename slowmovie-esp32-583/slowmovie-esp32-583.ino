@@ -16,9 +16,12 @@
 
 /*
  * Library dependancies:
- *   GxEPD
  *   PubSubClient
  */
+
+#include <SPI.h>
+#include "epd5in83b_V2.h"
+Epd epd;
 
 #include <WiFi.h>
 /* Enter your WiFi access point ssid and password in this headerfile
@@ -32,6 +35,7 @@ const uint8_t header[] = {0x36,0x34,0x38,0x20,0x34,0x38,0x30,0x0a}; //Header for
 
 #include <PubSubClient.h>
 const char* mqtt_server = "192.168.1.135";
+const char* mqtt_topic = "slowmovie/frame583";
 /****
  * IMPORTANT: Packet size must be changed inside the PubSubClient library files
  * edit: ~/Arduino/libraries/PubSubClient/src/PubSubClient.h
@@ -42,11 +46,7 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
 char msg[39200];
-uint8_t displayFrame[5808];
 int value = 0;
-
-
-//ESP32 pin definitions
 
 
 //Prototypes
@@ -59,13 +59,17 @@ void setup()
   Serial.println();
   Serial.println("setup");
 
-  //display.init(115200); // enable diagnostic output on Serial
-
-  for (uint16_t i=0; i<5808; i++) { displayFrame[i] = 0; }
-
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+
+  if (epd.Init() != 0) {
+    Serial.print("e-Paper init failed");
+    return;
+  }
+
+//  Serial.print("e-Paper Clear\r\n ");
+//  epd.Clear();
 
   Serial.println("setup done");
 }
@@ -106,7 +110,7 @@ void callback(char* topic, byte* message, unsigned int length) {
 
   // If a message is received on the topic esp32/output, you check if the message is either "on" or "off". 
   // Changes the output state according to the message
-  if (String(topic) == "slowmovie/frame") {
+  if (String(topic) == mqtt_topic) {
     Serial.print("Received a message of length: ");
 
     uint8_t header_buf[] = {0,0,0,0,0,0,0,0};
@@ -131,18 +135,12 @@ void callback(char* topic, byte* message, unsigned int length) {
     if (data_offset == 0) {
       Serial.println("Correct header not found. This message is not a properly formatted image");
     }
-    // for (uint16_t i=0; i<5808; i++) {
-    //   uint8_t hNibble = (char)message[i*2];
-    //   uint8_t lNibble = (char)message[(i*2)+1];
-    //   uint8_t storageByte = 0;
-    //   if (hNibble < 65) { storageByte += (hNibble-48)<<4; }
-    //   else { storageByte += (hNibble-55)<<4; }
-    //   if (lNibble < 65) { storageByte += lNibble-48; }
-    //   else { storageByte += lNibble-55; }
-    //   if (i%100 == 0) { Serial.println(i); }
-    //   displayFrame[i] = storageByte;
-    // }
-    // display.drawExampleBitmap(displayFrame, sizeof(displayFrame));
+
+    else {
+      Serial.println("Writing new frame to display");
+      epd.DisplayFrame(message+data_offset, 1);
+      Serial.println("Done writing new frame");
+    }
   }
 }
 
@@ -170,7 +168,7 @@ void reconnect() {
     if (client.connect("ESP32Client")) {
       Serial.println("connected");
       // Subscribe
-      client.subscribe("slowmovie/frame");
+      client.subscribe(mqtt_topic);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());

@@ -40,6 +40,7 @@ videoFile = workingDir + videoFile
 frameCapture = workingDir + "frame.png"
 inputXBMfile = workingDir + "frame.xbm"
 outputXBMfile = workingDir + "output.xbm" #this is likely deprecated
+inputPBMfile = workingDir + "frame.pbm"
 
 def processNextFrame():
     '''
@@ -187,6 +188,17 @@ def harvestFrame(video, frameRate, frameCount):
 
 def convertToXBM(image):
     cmd = 'convert ' + frameCapture + ' -rotate -90 -resize "176x264^" -gravity center -crop 176x264+0+0 -dither FloydSteinberg ' + inputXBMfile
+    print(cmd)
+
+    try:
+        subprocess.run(cmd, shell=True)
+        return True
+    except:
+        print("Failed to convert image to XBM")
+        return None
+
+def convertToPBM(image, x_size, y_size, rotate=0):
+    cmd = 'convert ' + frameCapture + ' -rotate ' +  rotate + ' -resize "' + x_size +'x' + y_size + '^" -gravity center -crop ' + x_size +'x' + y_size + '+0+0 -dither FloydSteinberg ' + inputPBMfile
     print(cmd)
 
     try:

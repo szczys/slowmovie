@@ -33,6 +33,7 @@ workingDir = "/home/mike/compile/slowmovie/"
 videoFile = "input.mkv"
 mqttBrokerAddr = "192.168.1.135"
 mqttTopic = "slowmovie/frame"
+mqttTopic_583 = "slowmovie/frame583"
 
 #Don't edit these:
 framecountJSON = workingDir + "framecount.json"
@@ -73,6 +74,10 @@ def processNextFrame():
         print("Abort: Unable to convert captured frame to XBM")
         return
 
+    if convertToPBM(frameCapture, 648, 480) == None:
+        print("Abort: Unable to convert captured frame to XBM")
+        return
+
     #Get formatted string from XBM data
     xbmArray = getXBM(inputXBMfile)
     if xbmArray == None:
@@ -82,6 +87,7 @@ def processNextFrame():
 
     #Publish message to MQTT
     publishMQTT(mqttBrokerAddr, mqttTopic, mqttMessage)
+    publishMQTT(mqttBrokerAddr, mqttTopic_583, inputPBMfile)
 
     #Increment framecount and save
     framecount['nextframe'] += 1

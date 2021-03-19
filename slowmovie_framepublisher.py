@@ -24,6 +24,7 @@ Get framecount (minus one for zero index:
 '''
 totalFrames = 196455
 sourceFrameate = 23.98
+frame_divisor_583 = 24
 
 '''
 Everything will happen in the working directory (remember trailing slash!).
@@ -74,9 +75,13 @@ def processNextFrame():
         print("Abort: Unable to convert captured frame to XBM")
         return
 
-    if convertToPBM(frameCapture, 648, 480) == None:
-        print("Abort: Unable to convert captured frame to XBM")
-        return
+    if framecount % frame_divisor_583 == 0:
+        new_frame_583 = True
+        if convertToPBM(frameCapture, 648, 480) == None:
+            print("Abort: Unable to convert captured frame to XBM")
+            return
+    else:
+        new_frame_583 = False
 
     #Get formatted string from XBM data
     xbmArray = getXBM(inputXBMfile)
@@ -87,8 +92,8 @@ def processNextFrame():
 
     #Publish message to MQTT
     publishMQTT(mqttBrokerAddr, mqttTopic, mqttMessage)
-    #publishMQTT(mqttBrokerAddr, mqttTopic_583, inputPBMfile)
-    publishMQTT(mqttBrokerAddr, mqttTopic_583, open(inputPBMfile,"rb").read())
+    if new_frame_583:
+        publishMQTT(mqttBrokerAddr, mqttTopic_583, open(inputPBMfile,"rb").read())
 
     #Increment framecount and save
     framecount['nextframe'] += 1

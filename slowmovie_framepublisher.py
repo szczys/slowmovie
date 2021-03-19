@@ -204,7 +204,7 @@ def convertToXBM(image):
         return None
 
 def convertToPBM(image, x_size, y_size, rotate=0):
-    cmd = 'convert ' + frameCapture + ' -rotate ' +  rotate + ' -resize "' + x_size +'x' + y_size + '^" -gravity center -crop ' + x_size +'x' + y_size + '+0+0 -dither FloydSteinberg ' + inputPBMfile
+    cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -dither FloydSteinberg {inputPBMfile}'
     print(cmd)
 
     try:

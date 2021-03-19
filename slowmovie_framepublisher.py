@@ -75,7 +75,7 @@ def processNextFrame():
         print("Abort: Unable to convert captured frame to XBM")
         return
 
-    if framecount % frame_divisor_583 == 0:
+    if framecount['nextframe'] % frame_divisor_583 == 0:
         new_frame_583 = True
         if convertToPBM(frameCapture, 648, 480) == None:
             print("Abort: Unable to convert captured frame to XBM")

@@ -87,7 +87,8 @@ def processNextFrame():
 
     #Publish message to MQTT
     publishMQTT(mqttBrokerAddr, mqttTopic, mqttMessage)
-    publishMQTT(mqttBrokerAddr, mqttTopic_583, inputPBMfile)
+    #publishMQTT(mqttBrokerAddr, mqttTopic_583, inputPBMfile)
+    publishMQTT(mqttBrokerAddr, mqttTopic_583, open(inputPBMfile,"rb").read())
 
     #Increment framecount and save
     framecount['nextframe'] += 1

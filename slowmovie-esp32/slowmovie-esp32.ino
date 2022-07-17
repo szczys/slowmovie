@@ -48,11 +48,28 @@ int value = 0;
 #include "EPD.h"
 #include "ImageData.h"
 
+#define EPAPER_SLEEP_TIMEOUT  60000
+uint32_t sleepcount = millis() + EPAPER_SLEEP_TIMEOUT;
+bool asleep = false;
+
+void put_to_sleep(void) {
+  Serial.println("Putting display to sleep");
+  asleep = true;
+  EPD_5IN83B_V2_Sleep();
+  pinMode(EPD_RST_PIN,INPUT);
+  pinMode(EPD_CS_PIN,INPUT);
+  pinMode(EPD_DC_PIN,INPUT);
+}
+
 void setup()
 {
   Serial.begin(115200);
   Serial.println();
   Serial.println("setup");
+
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
 
   printf("EPD_5IN83B_V2_test Demo\r\n");
   DEV_Module_Init();
@@ -60,15 +77,7 @@ void setup()
   printf("e-Paper Init and Clear...\r\n");
   EPD_5IN83B_V2_Init();
   EPD_5IN83B_V2_Clear();
-  //DEV_Delay_ms(500);
-  EPD_5IN83B_V2_Display(gImage_5in83b_V2_b, gImage_5in83b_V2_r);
-  EPD_5IN83B_V2_Sleep();
-
-  DEV_Delay_ms(500); //Delay before wifi so we don't trip the brownout detector
-
-  setup_wifi();
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
+  put_to_sleep();
 
   Serial.println("setup done");
 }
@@ -115,6 +124,27 @@ void callback(char* topic, byte* message, unsigned int length) {
     Serial.println("Received a message");
     Serial.println(length);
 
+    if (length >= 38880) {
+      uint16_t data_idx = length-38880;
+      Serial.print("Data starts at index ");
+      Serial.println(data_idx);
+
+      if (asleep) {
+        Serial.println("Waking up display");
+        asleep = false;
+        pinMode(EPD_RST_PIN,OUTPUT);
+        pinMode(EPD_CS_PIN,OUTPUT);
+        pinMode(EPD_DC_PIN,OUTPUT);
+        EPD_5IN83B_V2_Init();
+      }
+      sleepcount = millis() + EPAPER_SLEEP_TIMEOUT;
+      
+      EPD_5IN83B_V2_Display(message+data_idx, gImage_5in83b_V2_r);
+    }
+    else {
+      Serial.println("ERROR: Expected message length to be >= 38880");
+    }
+
 //    for (uint16_t i=0; i<5808; i++) {
 //      uint8_t hNibble = (char)message[i*2];
 //      uint8_t lNibble = (char)message[(i*2)+1];
@@ -153,6 +183,9 @@ void loop()
 {
   if (!client.connected()) {
     reconnect();
+  }
+  if ((!asleep) && (millis() > sleepcount)) {
+    put_to_sleep();
   }
   client.loop();
 }

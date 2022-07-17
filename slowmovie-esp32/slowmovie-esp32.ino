@@ -34,7 +34,7 @@ const char* mqtt_server = "192.168.1.135";
 /****
  * IMPORTANT: Packet size must be changed inside the PubSubClient library files
  * edit: ~/Arduino/libraries/PubSubClient/src/PubSubClient.h
- * change: #define MQTT_MAX_PACKET_SIZE 12000 
+ * change: #define MQTT_MAX_PACKET_SIZE 40000
  */
 
 WiFiClient espClient;
@@ -44,15 +44,9 @@ char msg[12000];
 uint8_t displayFrame[5808];
 int value = 0;
 
-// include library, include base class, make path known
-#include <GxEPD.h>
-#include <GxGDEW027W3/GxGDEW027W3.h>      // 2.7" b/w
-#include <GxIO/GxIO_SPI/GxIO_SPI.h>
-#include <GxIO/GxIO.h>
-
-//ESP32 pin definitions
-GxIO_Class io(SPI, /*CS=5*/ SS, /*DC=*/ 17, /*RST=*/ 16); // arbitrary selection of 17, 16
-GxEPD_Class display(io, /*RST=*/ 16, /*BUSY=*/ 4); // arbitrary selection of (16), 4
+#include "DEV_Config.h"
+#include "EPD.h"
+#include "ImageData.h"
 
 void setup()
 {
@@ -60,9 +54,17 @@ void setup()
   Serial.println();
   Serial.println("setup");
 
-  display.init(115200); // enable diagnostic output on Serial
+  printf("EPD_5IN83B_V2_test Demo\r\n");
+  DEV_Module_Init();
 
-  for (uint16_t i=0; i<5808; i++) { displayFrame[i] = 0; }
+  printf("e-Paper Init and Clear...\r\n");
+  EPD_5IN83B_V2_Init();
+  EPD_5IN83B_V2_Clear();
+  //DEV_Delay_ms(500);
+  EPD_5IN83B_V2_Display(gImage_5in83b_V2_b, gImage_5in83b_V2_r);
+  EPD_5IN83B_V2_Sleep();
+
+  DEV_Delay_ms(500); //Delay before wifi so we don't trip the brownout detector
 
   setup_wifi();
   client.setServer(mqtt_server, 1883);
@@ -113,18 +115,18 @@ void callback(char* topic, byte* message, unsigned int length) {
     Serial.println("Received a message");
     Serial.println(length);
 
-    for (uint16_t i=0; i<5808; i++) {
-      uint8_t hNibble = (char)message[i*2];
-      uint8_t lNibble = (char)message[(i*2)+1];
-      uint8_t storageByte = 0;
-      if (hNibble < 65) { storageByte += (hNibble-48)<<4; }
-      else { storageByte += (hNibble-55)<<4; }
-      if (lNibble < 65) { storageByte += lNibble-48; }
-      else { storageByte += lNibble-55; }
-      if (i%100 == 0) { Serial.println(i); }
-      displayFrame[i] = storageByte;
-    }
-    display.drawExampleBitmap(displayFrame, sizeof(displayFrame));
+//    for (uint16_t i=0; i<5808; i++) {
+//      uint8_t hNibble = (char)message[i*2];
+//      uint8_t lNibble = (char)message[(i*2)+1];
+//      uint8_t storageByte = 0;
+//      if (hNibble < 65) { storageByte += (hNibble-48)<<4; }
+//      else { storageByte += (hNibble-55)<<4; }
+//      if (lNibble < 65) { storageByte += lNibble-48; }
+//      else { storageByte += lNibble-55; }
+//      if (i%100 == 0) { Serial.println(i); }
+//      displayFrame[i] = storageByte;
+//    }
+//    display.drawExampleBitmap(displayFrame, sizeof(displayFrame));
   }
 }
 

@@ -22,9 +22,9 @@ import paho.mqtt.client as mqtt
 Get framecount (minus one for zero index:
    ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
 '''
-totalFrames = 196455
-sourceFrameate = 23.98
-frame_divisor_583 = 24      #How many frames to wait before pushing new image to display
+totalFrames = 250249
+sourceFrameate = 29.97
+frame_divisor = 10      #How many frames to wait before pushing new image to display
 
 '''
 Everything will happen in the working directory (remember trailing slash!).
@@ -34,7 +34,6 @@ workingDir = "/home/mike/compile/slowmovie/"
 videoFile = "input.mkv"
 mqttBrokerAddr = "192.168.1.135"
 mqttTopic = "slowmovie/frame"
-mqttTopic_583 = "slowmovie/frame583"
 
 #Don't edit these:
 framecountJSON = workingDir + "framecount.json"
@@ -70,40 +69,21 @@ def processNextFrame():
         print("Abort: Unable to grab next frame from video")
         return
 
-    #Convert to XBM
-    if convertToXBM(frameCapture) == None:
+    #Convert to PBM
+    if convertToPBM(frameCapture, 648, 480) == None:
         print("Abort: Unable to convert captured frame to XBM")
         return
 
-    if framecount['nextframe'] % frame_divisor_583 == 0:
-        new_frame_583 = True
-        if convertToPBM(frameCapture, 648, 480) == None:
-            print("Abort: Unable to convert captured frame to XBM")
-            return
-    else:
-        new_frame_583 = False
-
-    #Get formatted string from XBM data
-    xbmArray = getXBM(inputXBMfile)
-    if xbmArray == None:
-        print("Abort: Unable to import XBM array data")
-    mqttMessage = outputSingleString(xbmArray)
-    #print(mqttMessage)
-
     #Publish message to MQTT
-    publishMQTT(mqttBrokerAddr, mqttTopic, mqttMessage)
-    if new_frame_583:
-        publishMQTT(mqttBrokerAddr, mqttTopic_583, open(inputPBMfile,"rb").read())
+    publishMQTT(mqttBrokerAddr, mqttTopic, open(inputPBMfile,"rb").read())
 
     #Increment framecount and save
-    framecount['nextframe'] += 1
+    framecount['nextframe'] += frame_divisor
     if framecount['nextframe'] >= framecount['totalframes']:
         framecount['nextframe'] = 0
     if saveFramecount(framecountJSON, framecount) == False:
         print("Abort: failed to save new framecount")
         return
-    else:
-        print("Successfully sent next frame via MQTT")
     
 
 def getSavedFramecount(jsonfile):
@@ -210,7 +190,16 @@ def convertToXBM(image):
         return None
 
 def convertToPBM(image, x_size, y_size, rotate=0):
-    cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -dither FloydSteinberg {inputPBMfile}'
+    ## Old convert style
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -dither FloydSteinberg {inputPBMfile}'
+    ## Cropped
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -remap pattern:gray50 -negate {inputPBMfile}'
+    ## Letterbox
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -remap pattern:gray50 -negate {inputPBMfile}'
+    ## Letterbox brighter
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1 -negate {inputPBMfile}'
+    ## Cut out letterbox from original and then add letterbox brighter
+    cmd = f'convert {frameCapture} -gravity center -crop 720x358+0+0 +repage -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1 -negate {inputPBMfile}'
     print(cmd)
 
     try:

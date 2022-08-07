@@ -48,19 +48,6 @@ int value = 0;
 #include "EPD.h"
 #include "ImageData.h"
 
-#define EPAPER_SLEEP_TIMEOUT  60000
-uint32_t sleepcount = millis() + EPAPER_SLEEP_TIMEOUT;
-bool asleep = false;
-
-void put_to_sleep(void) {
-  Serial.println("Putting display to sleep");
-  asleep = true;
-  EPD_5IN83B_V2_Sleep();
-  pinMode(EPD_RST_PIN,INPUT);
-  pinMode(EPD_CS_PIN,INPUT);
-  pinMode(EPD_DC_PIN,INPUT);
-}
-
 void setup()
 {
   Serial.begin(115200);
@@ -76,8 +63,17 @@ void setup()
 
   printf("e-Paper Init and Clear...\r\n");
   EPD_5IN83B_V2_Init();
+//  Serial.println("Fill red");
+//  EPD_5IN83B_V2_Clear();
+//  EPD_5IN83B_V2_Display(BLANK,FILLED);
+//  delay(2000);
+//  Serial.println("Fill black");
+//  EPD_5IN83B_V2_Clear();
+//  EPD_5IN83B_V2_Display(FILLED, BLANK);
+//  delay(2000);
+//  Serial.println("Clear screen");
   EPD_5IN83B_V2_Clear();
-  put_to_sleep();
+  //EPD_5IN83B_V2_Sleep();
 
   Serial.println("setup done");
 }
@@ -129,34 +125,15 @@ void callback(char* topic, byte* message, unsigned int length) {
       Serial.print("Data starts at index ");
       Serial.println(data_idx);
 
-      if (asleep) {
-        Serial.println("Waking up display");
-        asleep = false;
-        pinMode(EPD_RST_PIN,OUTPUT);
-        pinMode(EPD_CS_PIN,OUTPUT);
-        pinMode(EPD_DC_PIN,OUTPUT);
-        EPD_5IN83B_V2_Init();
-      }
-      sleepcount = millis() + EPAPER_SLEEP_TIMEOUT;
+      EPD_5IN83B_V2_Init();
+      //EPD_5IN83B_V2_Clear();
+      EPD_5IN83B_V2_Display(message+data_idx, BLANK);
+      EPD_5IN83B_V2_Sleep();
       
-      EPD_5IN83B_V2_Display(message+data_idx, gImage_5in83b_V2_r);
     }
     else {
       Serial.println("ERROR: Expected message length to be >= 38880");
     }
-
-//    for (uint16_t i=0; i<5808; i++) {
-//      uint8_t hNibble = (char)message[i*2];
-//      uint8_t lNibble = (char)message[(i*2)+1];
-//      uint8_t storageByte = 0;
-//      if (hNibble < 65) { storageByte += (hNibble-48)<<4; }
-//      else { storageByte += (hNibble-55)<<4; }
-//      if (lNibble < 65) { storageByte += lNibble-48; }
-//      else { storageByte += lNibble-55; }
-//      if (i%100 == 0) { Serial.println(i); }
-//      displayFrame[i] = storageByte;
-//    }
-//    display.drawExampleBitmap(displayFrame, sizeof(displayFrame));
   }
 }
 
@@ -184,8 +161,6 @@ void loop()
   if (!client.connected()) {
     reconnect();
   }
-  if ((!asleep) && (millis() > sleepcount)) {
-    put_to_sleep();
-  }
+
   client.loop();
 }

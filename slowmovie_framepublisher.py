@@ -17,6 +17,7 @@ import re
 import subprocess
 import json
 import paho.mqtt.client as mqtt
+import datetime
 
 '''
 Get framecount (minus one for zero index:
@@ -25,6 +26,8 @@ Get framecount (minus one for zero index:
 totalFrames = 250249
 sourceFrameate = 29.97
 frame_divisor = 10      #How many frames to wait before pushing new image to display
+screensize_x = 640
+screensize_y = 384
 
 '''
 Everything will happen in the working directory (remember trailing slash!).
@@ -70,12 +73,12 @@ def processNextFrame():
         return
 
     #Convert to PBM
-    if convertToPBM(frameCapture, 648, 480) == None:
+    if convertToPBM(frameCapture, screensize_x, screensize_y) == None:
         print("Abort: Unable to convert captured frame to XBM")
         return
 
     #Publish message to MQTT
-    publishMQTT(mqttBrokerAddr, mqttTopic, open(inputPBMfile,"rb").read())
+    publishMQTT(mqttBrokerAddr, mqttTopic, str(datetime.datetime.now()))
 
     #Increment framecount and save
     framecount['nextframe'] += frame_divisor
@@ -84,7 +87,6 @@ def processNextFrame():
     if saveFramecount(framecountJSON, framecount) == False:
         print("Abort: failed to save new framecount")
         return
-    
 
 def getSavedFramecount(jsonfile):
     #Import JSON to get next frame count
@@ -132,7 +134,6 @@ def fixHexArray(hexList):
         print(invertAndSwitchEndian(hexList[i]),end='')
         if (i+1)%16 == 0:
             print(',\n    ',end='')
-            
         else:
             print(',',end='')
     print('')

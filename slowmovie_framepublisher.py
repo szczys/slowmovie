@@ -212,7 +212,7 @@ def convertToPBM(image, x_size, y_size, rotate=0):
 
 def publishMQTT(broker,topic,message):
     mqttBroker = broker
-    client = mqtt.Client("slowmovie_frame_grabber")
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
     client.connect(mqttBroker)
     client.publish(topic, message)
     client.disconnect()

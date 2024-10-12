@@ -3,7 +3,7 @@ __pycache__
 *.png
 *.xbm
 *.pbm
-framecount.json
+frame_count.json
 *.mkv
 *.mp4
 *.avi

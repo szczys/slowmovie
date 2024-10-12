@@ -57,7 +57,7 @@ class SlowMovie:
         self.inputXBMfile = self.workingDir + "frame.xbm"
         self.inputPBMfile = self.workingDir + "frame.pbm"
 
-    def processNextFrame(self):
+    def process_next_frame(self):
         '''
         Workflow:
         * lookup next frame number
@@ -69,37 +69,37 @@ class SlowMovie:
         '''
 
         #Import JSON
-        framecount = self.getSavedFramecount(self.framecountJSON)
+        framecount = self.get_saved_frame_count(self.framecountJSON)
         if framecount == None:
             #Error getting JSON, try to generate a new one
             print("Trying to generate new JSON file")
             framecount = {'totalframes': self.totalFrames, 'nextframe': 0}
-            if (self.saveFramecount(self.framecountJSON, framecount) == False):
+            if (self.save_frame_count(self.framecountJSON, framecount) == False):
                 print("Abort: JSON file cannot be saved")
                 return
 
         #Grab next frame
-        if self.harvestFrame(self.videoFile, self.sourceFrameate, framecount['nextframe']) == None:
+        if self.harvest_frame(self.videoFile, self.sourceFrameate, framecount['nextframe']) == None:
             print("Abort: Unable to grab next frame from video")
             return
 
         #Convert to PBM
-        if self.convertToPBM(self.frameCapture, self.screensize_x, self.screensize_y) == None:
+        if self.convert_to_pbm(self.frameCapture, self.screensize_x, self.screensize_y) == None:
             print("Abort: Unable to convert captured frame to XBM")
             return
 
         #Publish message to MQTT
-        self.publishMQTT(self.mqttBrokerAddr, self.mqttTopic, str(datetime.datetime.now()))
+        self.publish_mqtt(self.mqttBrokerAddr, self.mqttTopic, str(datetime.datetime.now()))
 
         #Increment framecount and save
         framecount['nextframe'] += self.frame_divisor
         if framecount['nextframe'] >= framecount['totalframes']:
             framecount['nextframe'] = 0
-        if self.saveFramecount(self.framecountJSON, framecount) == False:
+        if self.save_frame_count(self.framecountJSON, framecount) == False:
             print("Abort: failed to save new framecount")
             return
 
-    def getSavedFramecount(self, jsonfile):
+    def get_saved_frame_count(self, jsonfile):
         #Import JSON to get next frame count
         try:
             with open(jsonfile) as f:
@@ -110,7 +110,7 @@ class SlowMovie:
         return framecount
 
 
-    def saveFramecount(self, jsonfile, countDict):
+    def save_frame_count(self, jsonfile, countDict):
         #Export JSON for frame count
         try:
             with open(jsonfile, 'w') as f:
@@ -121,7 +121,7 @@ class SlowMovie:
             return False
         return True
 
-    def harvestFrame(self, video, frameRate, frameCount):
+    def harvest_frame(self, video, frameRate, frameCount):
         cadence = 1000/frameRate
         frameMilliseconds = frameCount * cadence
         millis=int(frameMilliseconds%1000)
@@ -139,7 +139,7 @@ class SlowMovie:
             print("FFMEG failed to grab a frame")
             return None
 
-    def convertToPBM(self, image, x_size, y_size, rotate=0):
+    def convert_to_pbm(self, image, x_size, y_size, rotate=0):
         cmd = (
                 f'convert {self.frameCapture} -gravity center +repage -rotate {rotate} '
                 f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
@@ -155,7 +155,7 @@ class SlowMovie:
             print("Failed to convert image to XBM")
             return None
 
-    def publishMQTT(self, broker,topic,message):
+    def publish_mqtt(self, broker,topic,message):
         mqttBroker = broker
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
         client.connect(mqttBroker)
@@ -164,4 +164,4 @@ class SlowMovie:
 
 if __name__ == "__main__":
     frame_getter = SlowMovie()
-    frame_getter.processNextFrame()
+    frame_getter.process_next_frame()

@@ -22,6 +22,46 @@ import paho.mqtt.client as mqtt
 import datetime
 import yaml
 
+class SourceVideo:
+    def __init__(self, video_file: str, prefix: str, working_dir: str):
+        self.video_file = video_file
+        self.total_frames = self.get_total_frames(self.video_file)
+        self.source_framerate = self.get_fps(self.video_file)
+        self.frame_capture = os.path.join(working_dir, f"{prefix}.png")
+
+    def get_total_frames(self, video_file: str) -> int:
+        cmd = f"ffmpeg -i {video_file} -vcodec copy -f rawvideo -y /dev/null 2>&1 | tr ^M '\n' | awk '/^frame=/ {{print $2}}'|tail -n 1"
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
+        return int(result.stdout)
+
+    def get_fps(self, video_file: str) -> int:
+        cmd = f'ffprobe {video_file} 2>&1| grep ",* fps" | cut -d "," -f 5 | cut -d " " -f 2'
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
+        return int(result.stdout)
+
+    def harvest_frame(self, frame_count: int, video_in: str | None = None, frame_out: str | None = None, framerate: int | None = None) -> bool:
+        v_in = video_in or self.video_file
+        f_out = frame_out or self.frame_capture
+        v_frameRate = framerate or self.source_framerate
+
+        cadence = 1000/v_frameRate
+        frame_millis = frame_count * cadence
+        millis=int(frame_millis%1000)
+        seconds=int((frame_millis/1000)%60)
+        minutes=int((frame_millis/(1000*60))%60)
+        hours=int((frame_millis/(1000*60*60))%24)
+        timestamp = str(hours) + ":" + str(minutes) + ":" + str(seconds) + "." + str(millis)
+
+        cmd = f'/usr/bin/ffmpeg -y -ss "{timestamp}" -i {v_in} -frames:v 1 {f_out}'
+        print(cmd)
+        try:
+            subprocess.run(cmd, shell=True)
+            return True
+        except:
+            print("FFMPEG failed to grab a frame")
+            return False
+
+
 class SlowMovie:
     def __init__(self, source_yaml: str | None = None, hardware_yaml: str | None = None, working_dir: str | None = None):
         '''
@@ -38,9 +78,9 @@ class SlowMovie:
         self.prefix = source_config['movie'].get('prefix', 'frame') # Optional YAML value for naming files
         self.frame_divisor = source_config['movie'].get('frame_divisor', 5) # Optional YAML value for number of frames to skip each run
         self.screens = hardware_config['screen_sizes']
-        self.video_file = source_config['movie']['video_file']
-        self.total_frames = self.get_total_frames(self.video_file)
-        self.source_framerate = self.get_fps(self.video_file)
+
+        self.video = SourceVideo(source_config['movie']['video_file'], self.prefix, self.working_dir)
+
 
         '''
         Everything will happen in the working directory (remember trailing slash!).
@@ -51,17 +91,6 @@ class SlowMovie:
 
         #Don't edit these:
         self.framecount_json = os.path.join(self.working_dir, f"{self.prefix}_count.json")
-        self.frame_capture = os.path.join(self.working_dir, f"{self.prefix}.png")
-
-    def get_total_frames(self, video_file: str) -> int:
-        cmd = f"ffmpeg -i {video_file} -vcodec copy -f rawvideo -y /dev/null 2>&1 | tr ^M '\n' | awk '/^frame=/ {{print $2}}'|tail -n 1"
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
-        return int(result.stdout)
-
-    def get_fps(self, video_file: str) -> int:
-        cmd = f'ffprobe {video_file} 2>&1| grep ",* fps" | cut -d "," -f 5 | cut -d " " -f 2'
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
-        return int(result.stdout)
 
     def process_next_frame(self):
         '''
@@ -79,20 +108,21 @@ class SlowMovie:
         if framecount == None:
             #Error getting JSON, try to generate a new one
             print("Trying to generate new JSON file")
-            framecount = {'totalframes': self.total_frames, 'nextframe': 0}
+            framecount = {'totalframes': self.video.total_frames, 'nextframe': 0}
             if (self.save_frame_count(self.framecount_json, framecount) == False):
                 print("Abort: JSON file cannot be saved")
                 return
 
         #Grab next frame
-        if self.harvest_frame(self.video_file, self.frame_capture, self.source_framerate, framecount['nextframe']) == False:
+        if self.video.harvest_frame(framecount['nextframe']) == False:
             print("Abort: Unable to grab next frame from video")
             return
 
         #Convert to PBM
         conversion_count = 0
         for screen in self.screens:
-            if self.convert_to_pbm(self.frame_capture, os.path.join(self.working_dir, f"{self.prefix}-{screen['name']}.pbm"), screen['x'], screen['y']) == False:
+            outfile = os.path.join(self.working_dir, f"{self.prefix}-{screen['name']}.pbm")
+            if self.convert_to_pbm(self.video.frame_capture, outfile, screen['x'], screen['y']) == False:
                 print(f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}")
             else:
                 conversion_count += 1
@@ -133,24 +163,6 @@ class SlowMovie:
             print("Unable to write JSON file %s" % self.framecount_json)
             return False
         return True
-
-    def harvest_frame(self, video_in: str, frame_out: str, frameRate: int, frame_count: int) -> bool:
-        cadence = 1000/frameRate
-        frame_millis = frame_count * cadence
-        millis=int(frame_millis%1000)
-        seconds=int((frame_millis/1000)%60)
-        minutes=int((frame_millis/(1000*60))%60)
-        hours=int((frame_millis/(1000*60*60))%24)
-        timestamp = str(hours) + ":" + str(minutes) + ":" + str(seconds) + "." + str(millis)
-
-        cmd = f'/usr/bin/ffmpeg -y -ss "{timestamp}" -i {video_in} -frames:v 1 {frame_out}'
-        print(cmd)
-        try:
-            subprocess.run(cmd, shell=True)
-            return True
-        except:
-            print("FFMPEG failed to grab a frame")
-            return False
 
     def convert_to_pbm(self, input_image: str, output_image: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
         cmd = (

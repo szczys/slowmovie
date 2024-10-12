@@ -62,6 +62,21 @@ class SourceVideo:
             return False
 
 
+class MQTTClient:
+    def __init__(self, broker_addr: str, topic: str):
+        self.broker_addr = broker_addr
+        self.topic = topic
+
+    def publish(self,message: str, broker: str | None = None,topic: str | None = None):
+        m_addr = broker or self.broker_addr
+        m_topic = topic or self.topic
+
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+        client.connect(m_addr)
+        client.publish(m_topic, message)
+        client.disconnect()
+
+
 class SlowMovie:
     def __init__(self, source_yaml: str | None = None, hardware_yaml: str | None = None, working_dir: str | None = None):
         '''
@@ -80,14 +95,7 @@ class SlowMovie:
         self.screens = hardware_config['screen_sizes']
 
         self.video = SourceVideo(source_config['movie']['video_file'], self.prefix, self.working_dir)
-
-
-        '''
-        Everything will happen in the working directory (remember trailing slash!).
-        Make a symlink to the video in this directory
-        '''
-        self.mqtt_broker_addr = "192.168.1.135"
-        self.mqtt_topic = "slowmovie/frame"
+        self.mqtt = MQTTClient( source_config['mqtt']['addr'], source_config['mqtt']['topic'])
 
         #Don't edit these:
         self.framecount_json = os.path.join(self.working_dir, f"{self.prefix}_count.json")
@@ -130,9 +138,8 @@ class SlowMovie:
             print("Abort: Unable to convert captured frame to any supplied screen size")
             return
 
-
         #Publish message to MQTT
-        self.publish_mqtt(self.mqtt_broker_addr, self.mqtt_topic, str(datetime.datetime.now()))
+        self.mqtt.publish(str(datetime.datetime.now()))
 
         #Increment framecount and save
         framecount['nextframe'] += self.frame_divisor
@@ -179,12 +186,6 @@ class SlowMovie:
         except:
             print("Failed to convert image to XBM")
             return False
-
-    def publish_mqtt(self, broker,topic,message):
-        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-        client.connect(broker)
-        client.publish(topic, message)
-        client.disconnect()
 
 if __name__ == "__main__":
     frame_getter = SlowMovie()

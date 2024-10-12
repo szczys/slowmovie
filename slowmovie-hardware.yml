@@ -1,0 +1,7 @@
+screen_sizes:
+  - name: "640x384"
+    x: 640
+    y: 384
+  - name: "800x480"
+    x: 800
+    y: 480

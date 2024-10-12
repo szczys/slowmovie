@@ -18,22 +18,28 @@ import subprocess
 import json
 import paho.mqtt.client as mqtt
 import datetime
+import yaml
 
 '''
 Get framecount (minus one for zero index:
    ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
 '''
-totalFrames = 181104
-sourceFrameate = 24
-frame_divisor = 5      #How many frames to wait before pushing new image to display
-screensize_x = 640
-screensize_y = 384
+with open('slowmovie-source.yml', 'r') as file:
+    source_config = yaml.safe_load(file)
+with open('slowmovie-hardware.yml', 'r') as file:
+    hardware_config = yaml.safe_load(file)
+
+totalFrames = source_config['movie']['totalFrames']
+sourceFrameate = source_config['movie']['sourceFrameRate']
+frame_divisor = source_config['movie']['frame_divisor'] #How many frames to wait before pushing new image to display
+screensize_x = hardware_config['screen_sizes'][0]['x']
+screensize_y = hardware_config['screen_sizes'][0]['y']
 '''
 Everything will happen in the working directory (remember trailing slash!).
 Make a symlink to the video in this directory
 '''
 workingDir = "/home/mike/compile/slowmovie/"
-videoFile = "input.mkv"
+videoFile = source_config['movie']['videoFile']
 mqttBrokerAddr = "192.168.1.135"
 mqttTopic = "slowmovie/frame"
 

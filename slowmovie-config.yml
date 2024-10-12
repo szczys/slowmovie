@@ -1,3 +1,10 @@
+movie:
+  video_file: "input.mkv"
+
+mqtt:
+  addr: "192.168.1.135"
+  topic: "slowmovie/frame"
+
 screen_sizes:
   - name: "640x384"
     x: 640

@@ -78,24 +78,22 @@ class MQTTClient:
 
 
 class SlowMovie:
-    def __init__(self, source_yaml: str | None = None, hardware_yaml: str | None = None, working_dir: str | None = None):
+    def __init__(self, config_yaml: str | None = None, working_dir: str | None = None):
         '''
         Get framecount (minus one for zero index:
         ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
         '''
         self.working_dir = working_dir or os.path.dirname(os.path.realpath(__file__))
 
-        with open(source_yaml or os.path.join(self.working_dir, 'slowmovie-source.yml'), 'r') as file:
-            source_config = yaml.safe_load(file)
-        with open(hardware_yaml or os.path.join(self.working_dir, 'slowmovie-hardware.yml'), 'r') as file:
-            hardware_config = yaml.safe_load(file)
+        with open(config_yaml or os.path.join(self.working_dir, 'slowmovie-config.yml'), 'r') as file:
+            config = yaml.safe_load(file)
 
-        self.prefix = source_config['movie'].get('prefix', 'frame') # Optional YAML value for naming files
-        self.frame_divisor = source_config['movie'].get('frame_divisor', 5) # Optional YAML value for number of frames to skip each run
-        self.screens = hardware_config['screen_sizes']
+        self.prefix = config['movie'].get('prefix', 'frame') # Optional YAML value for naming files
+        self.frame_divisor = config['movie'].get('frame_divisor', 5) # Optional YAML value for number of frames to skip each run
+        self.screens = config['screen_sizes']
 
-        self.video = SourceVideo(source_config['movie']['video_file'], self.prefix, self.working_dir)
-        self.mqtt = MQTTClient( source_config['mqtt']['addr'], source_config['mqtt']['topic'])
+        self.video = SourceVideo(config['movie']['video_file'], self.prefix, self.working_dir)
+        self.mqtt = MQTTClient(config['mqtt']['addr'], config['mqtt']['topic'])
 
         #Don't edit these:
         self.framecount_json = os.path.join(self.working_dir, f"{self.prefix}_count.json")

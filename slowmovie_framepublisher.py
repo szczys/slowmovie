@@ -37,7 +37,7 @@ class SlowMovie:
 
 
         self.totalFrames = source_config['movie']['totalFrames']
-        self.sourceFrameate = source_config['movie']['sourceFrameRate']
+        self.source_framerate = source_config['movie']['sourceFrameRate']
         self.frame_divisor = source_config['movie']['frame_divisor'] #How many frames to wait before pushing new image to display
         self.screens = hardware_config['screen_sizes']
 
@@ -53,8 +53,6 @@ class SlowMovie:
         self.framecountJSON = os.path.join(self.workingDir, "framecount.json")
         self.videoFile = os.path.join(self.workingDir, self.videoFile)
         self.frameCapture = os.path.join(self.workingDir, "frame.png")
-        self.inputXBMfile = os.path.join(self.workingDir, "frame.xbm")
-        self.inputPBMfile = os.path.join(self.workingDir, "frame.pbm")
 
     def process_next_frame(self):
         '''
@@ -78,7 +76,7 @@ class SlowMovie:
                 return
 
         #Grab next frame
-        if self.harvest_frame(self.videoFile, self.sourceFrameate, framecount['nextframe']) == None:
+        if self.harvest_frame(self.videoFile, self.frameCapture, self.source_framerate, framecount['nextframe']) == False:
             print("Abort: Unable to grab next frame from video")
             return
 
@@ -127,7 +125,7 @@ class SlowMovie:
             return False
         return True
 
-    def harvest_frame(self, video, frameRate, frameCount):
+    def harvest_frame(self, video_in: str, frame_out: str, frameRate: int, frameCount: int) -> bool:
         cadence = 1000/frameRate
         frameMilliseconds = frameCount * cadence
         millis=int(frameMilliseconds%1000)
@@ -136,14 +134,14 @@ class SlowMovie:
         hours=int((frameMilliseconds/(1000*60*60))%24)
         timestamp = str(hours) + ":" + str(minutes) + ":" + str(seconds) + "." + str(millis)
 
-        cmd = '/usr/bin/ffmpeg -y -ss "' + timestamp + '" -i ' + self.videoFile + ' -frames:v 1 ' + self.frameCapture
+        cmd = f'/usr/bin/ffmpeg -y -ss "{timestamp}" -i {video_in} -frames:v 1 {frame_out}'
         print(cmd)
         try:
             subprocess.run(cmd, shell=True)
             return True
         except:
-            print("FFMEG failed to grab a frame")
-            return None
+            print("FFMPEG failed to grab a frame")
+            return False
 
     def convert_to_pbm(self, input_image: str, output_image: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
         cmd = (

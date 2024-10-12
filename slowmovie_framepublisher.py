@@ -85,7 +85,7 @@ class SlowMovie:
         #Convert to PBM
         conversion_count = 0
         for screen in self.screens:
-            if self.convert_to_pbm(self.frameCapture, screen['name'], screen['x'], screen['y']) == False:
+            if self.convert_to_pbm(self.frameCapture, os.path.join(self.workingDir, f"frame-{screen['name']}.pbm"), screen['x'], screen['y']) == False:
                 print(f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}")
             else:
                 conversion_count += 1
@@ -145,13 +145,12 @@ class SlowMovie:
             print("FFMEG failed to grab a frame")
             return None
 
-    def convert_to_pbm(self, image: str, variant_name: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
-        outfile = os.path.join(self.workingDir, f'frame-{variant_name}.pbm')
+    def convert_to_pbm(self, input_image: str, output_image: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
         cmd = (
-                f'convert {image} -gravity center +repage -rotate {rotate} '
+                f'convert {input_image} -gravity center +repage -rotate {rotate} '
                 f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
                 f'-background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1.2 '
-                f'-sharpen 0x2 -dither FloydSteinberg -negate {outfile}'
+                f'-sharpen 0x2 -dither FloydSteinberg -negate {output_image}'
             )
         print(cmd)
 

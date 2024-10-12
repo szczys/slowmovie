@@ -55,7 +55,6 @@ class SlowMovie:
         self.videoFile = self.workingDir + self.videoFile
         self.frameCapture = self.workingDir + "frame.png"
         self.inputXBMfile = self.workingDir + "frame.xbm"
-        self.outputXBMfile = self.workingDir + "output.xbm" #this is likely deprecated
         self.inputPBMfile = self.workingDir + "frame.pbm"
 
     def processNextFrame(self):
@@ -122,57 +121,6 @@ class SlowMovie:
             return False
         return True
 
-    def invertAndSwitchEndian(self, hexval):
-        """
-        Take a value and return the inverse, endian-flipped, hex value of it
-        """
-        if type(hexval) == str:
-            stringVal = format(int(hexval[-2:],16), '#010b')[2:]
-        else:
-            stringVal = format(hexval, '#010b')[2:]
-        #newVal = stringVal[::-1]
-        invertedVal = ''
-        for i in stringVal[::-1]:
-            invertedVal += '0' if i == '1' else '1'
-        return format(int(invertedVal,2),'#04X')
-
-    def fixHexArray(self, hexList):
-        """
-        XBM files are almost what we need but they are inverted and wrong-endian. This fixes it.
-        """
-        print("imgArray = {")
-        print("    ",end='')
-        for i in range(len(hexList)):
-            print(self.invertAndSwitchEndian(hexList[i]),end='')
-            if (i+1)%16 == 0:
-                print(',\n    ',end='')
-            else:
-                print(',',end='')
-        print('')
-        print("};")
-
-    def outputSingleString(self, hexList):
-        """
-        XBM files are almost what we need but they are inverted and wrong-endian. This fixes it.
-        """
-        outString = ""
-        for i in range(len(hexList)):
-            outString += self.invertAndSwitchEndian(hexList[i])[-2:]
-        return outString
-
-    def getXBM(self, filename):
-        """
-        Read in all the hex values from an XBM image file
-        """
-        try:
-            with open(filename) as file:
-                data = file.read()
-        except:
-            return []
-
-        hexvalues = re.findall(r'0X[0-9A-F]+', data, re.I)
-        return hexvalues
-
     def harvestFrame(self, video, frameRate, frameCount):
         cadence = 1000/frameRate
         frameMilliseconds = frameCount * cadence
@@ -191,28 +139,7 @@ class SlowMovie:
             print("FFMEG failed to grab a frame")
             return None
 
-    def convertToXBM(self, image):
-        cmd = 'convert ' + self.frameCapture + ' -rotate -90 -resize "176x264^" -gravity center -crop 176x264+0+0 -dither FloydSteinberg ' + self.inputXBMfile
-        print(cmd)
-
-        try:
-            subprocess.run(cmd, shell=True)
-            return True
-        except:
-            print("Failed to convert image to XBM")
-            return None
-
     def convertToPBM(self, image, x_size, y_size, rotate=0):
-        ## Old convert style
-        #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -dither FloydSteinberg {inputPBMfile}'
-        ## Cropped
-        #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -remap pattern:gray50 -negate {inputPBMfile}'
-        ## Letterbox
-        #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -remap pattern:gray50 -negate {inputPBMfile}'
-        ## Letterbox brighter
-        #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1 -negate {inputPBMfile}'
-        ## Cut out letterbox from original and then add letterbox brighter
-        #cmd = f'convert {frameCapture} -gravity center -crop 720x358+0+0 +repage -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 2 -sharpen 0x2 -dither FloydSteinberg -negate {inputPBMfile}'
         cmd = (
                 f'convert {self.frameCapture} -gravity center +repage -rotate {rotate} '
                 f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '

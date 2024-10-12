@@ -28,16 +28,16 @@ class SlowMovie:
         Get framecount (minus one for zero index:
         ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
         '''
-        self.workingDir = working_dir or os.path.dirname(os.path.realpath(__file__))
+        self.working_dir = working_dir or os.path.dirname(os.path.realpath(__file__))
 
-        with open(source_yaml or os.path.join(self.workingDir, 'slowmovie-source.yml'), 'r') as file:
+        with open(source_yaml or os.path.join(self.working_dir, 'slowmovie-source.yml'), 'r') as file:
             source_config = yaml.safe_load(file)
-        with open(hardware_yaml or os.path.join(self.workingDir, 'slowmovie-hardware.yml'), 'r') as file:
+        with open(hardware_yaml or os.path.join(self.working_dir, 'slowmovie-hardware.yml'), 'r') as file:
             hardware_config = yaml.safe_load(file)
 
 
-        self.totalFrames = source_config['movie']['totalFrames']
-        self.source_framerate = source_config['movie']['sourceFrameRate']
+        self.total_frames = source_config['movie']['total_frames']
+        self.source_framerate = source_config['movie']['source_framerate']
         self.frame_divisor = source_config['movie']['frame_divisor'] #How many frames to wait before pushing new image to display
         self.screens = hardware_config['screen_sizes']
 
@@ -45,14 +45,13 @@ class SlowMovie:
         Everything will happen in the working directory (remember trailing slash!).
         Make a symlink to the video in this directory
         '''
-        self.videoFile = source_config['movie']['videoFile']
-        self.mqttBrokerAddr = "192.168.1.135"
-        self.mqttTopic = "slowmovie/frame"
+        self.video_file = source_config['movie']['video_file']
+        self.mqtt_broker_addr = "192.168.1.135"
+        self.mqtt_topic = "slowmovie/frame"
 
         #Don't edit these:
-        self.framecountJSON = os.path.join(self.workingDir, "framecount.json")
-        self.videoFile = os.path.join(self.workingDir, self.videoFile)
-        self.frameCapture = os.path.join(self.workingDir, "frame.png")
+        self.framecount_json = os.path.join(self.working_dir, "framecount.json")
+        self.frame_capture = os.path.join(self.working_dir, "frame.png")
 
     def process_next_frame(self):
         '''
@@ -66,24 +65,24 @@ class SlowMovie:
         '''
 
         #Import JSON
-        framecount = self.get_saved_frame_count(self.framecountJSON)
+        framecount = self.get_saved_frame_count(self.framecount_json)
         if framecount == None:
             #Error getting JSON, try to generate a new one
             print("Trying to generate new JSON file")
-            framecount = {'totalframes': self.totalFrames, 'nextframe': 0}
-            if (self.save_frame_count(self.framecountJSON, framecount) == False):
+            framecount = {'totalframes': self.total_frames, 'nextframe': 0}
+            if (self.save_frame_count(self.framecount_json, framecount) == False):
                 print("Abort: JSON file cannot be saved")
                 return
 
         #Grab next frame
-        if self.harvest_frame(self.videoFile, self.frameCapture, self.source_framerate, framecount['nextframe']) == False:
+        if self.harvest_frame(self.video_file, self.frame_capture, self.source_framerate, framecount['nextframe']) == False:
             print("Abort: Unable to grab next frame from video")
             return
 
         #Convert to PBM
         conversion_count = 0
         for screen in self.screens:
-            if self.convert_to_pbm(self.frameCapture, os.path.join(self.workingDir, f"frame-{screen['name']}.pbm"), screen['x'], screen['y']) == False:
+            if self.convert_to_pbm(self.frame_capture, os.path.join(self.working_dir, f"frame-{screen['name']}.pbm"), screen['x'], screen['y']) == False:
                 print(f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}")
             else:
                 conversion_count += 1
@@ -93,13 +92,13 @@ class SlowMovie:
 
 
         #Publish message to MQTT
-        self.publish_mqtt(self.mqttBrokerAddr, self.mqttTopic, str(datetime.datetime.now()))
+        self.publish_mqtt(self.mqtt_broker_addr, self.mqtt_topic, str(datetime.datetime.now()))
 
         #Increment framecount and save
         framecount['nextframe'] += self.frame_divisor
         if framecount['nextframe'] >= framecount['totalframes']:
             framecount['nextframe'] = 0
-        if self.save_frame_count(self.framecountJSON, framecount) == False:
+        if self.save_frame_count(self.framecount_json, framecount) == False:
             print("Abort: failed to save new framecount")
             return
 
@@ -109,29 +108,29 @@ class SlowMovie:
             with open(jsonfile) as f:
                 framecount = json.load(f)
         except:
-            print("Unable to open JSON file %s" % self.framecountJSON)
+            print("Unable to open JSON file %s" % self.framecount_json)
             return None
         return framecount
 
 
-    def save_frame_count(self, jsonfile, countDict):
+    def save_frame_count(self, jsonfile, count_dict):
         #Export JSON for frame count
         try:
             with open(jsonfile, 'w') as f:
-                json.dump(countDict, f)
+                json.dump(count_dict, f)
             print("Successfully generated JSON file")
         except:
-            print("Unable to write JSON file %s" % self.framecountJSON)
+            print("Unable to write JSON file %s" % self.framecount_json)
             return False
         return True
 
-    def harvest_frame(self, video_in: str, frame_out: str, frameRate: int, frameCount: int) -> bool:
+    def harvest_frame(self, video_in: str, frame_out: str, frameRate: int, frame_count: int) -> bool:
         cadence = 1000/frameRate
-        frameMilliseconds = frameCount * cadence
-        millis=int(frameMilliseconds%1000)
-        seconds=int((frameMilliseconds/1000)%60)
-        minutes=int((frameMilliseconds/(1000*60))%60)
-        hours=int((frameMilliseconds/(1000*60*60))%24)
+        frame_millis = frame_count * cadence
+        millis=int(frame_millis%1000)
+        seconds=int((frame_millis/1000)%60)
+        minutes=int((frame_millis/(1000*60))%60)
+        hours=int((frame_millis/(1000*60*60))%24)
         timestamp = str(hours) + ":" + str(minutes) + ":" + str(seconds) + "." + str(millis)
 
         cmd = f'/usr/bin/ffmpeg -y -ss "{timestamp}" -i {video_in} -frames:v 1 {frame_out}'
@@ -160,9 +159,8 @@ class SlowMovie:
             return False
 
     def publish_mqtt(self, broker,topic,message):
-        mqttBroker = broker
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-        client.connect(mqttBroker)
+        client.connect(broker)
         client.publish(topic, message)
         client.disconnect()
 

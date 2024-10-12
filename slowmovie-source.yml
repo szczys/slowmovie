@@ -1,6 +1,6 @@
 movie:
-  videoFile: "input.mkv"
-  totalFrames: 181104
-  sourceFrameRate: 24
+  video_file: "input.mkv"
+  total_frames: 181104
+  source_framerate: 24
   frame_divisor: 5      #How many frames to wait before pushing new image to display
 

@@ -38,7 +38,7 @@ const char* mqtt_topic = "slowmovie/frame";
 int    HTTP_PORT   = 80;
 String HTTP_METHOD = "GET"; // or "POST"
 char   HOST_NAME[] = "192.168.1.105"; // hostname of web server:
-String PATH_NAME   = "/download/frame.pbm";
+String PATH_NAME   = "/download/frame-640x384.pbm";
 
 /* The PBM-formated header string that indicates the start of binary image data */
 const uint8_t header[] = {0x36,0x34,0x30,0x20,0x33,0x38,0x34,0x0a}; //Header for 640x384: "640 384[Linefeed]"

@@ -35,23 +35,33 @@ class SlowMovie:
         with open(hardware_yaml or os.path.join(self.working_dir, 'slowmovie-hardware.yml'), 'r') as file:
             hardware_config = yaml.safe_load(file)
 
-
-        self.total_frames = source_config['movie']['total_frames']
-        self.source_framerate = source_config['movie']['source_framerate']
-        self.frame_divisor = source_config['movie']['frame_divisor'] #How many frames to wait before pushing new image to display
+        self.prefix = source_config['movie'].get('prefix', 'frame') # Optional YAML value for naming files
+        self.frame_divisor = source_config['movie'].get('frame_divisor', 5) # Optional YAML value for number of frames to skip each run
         self.screens = hardware_config['screen_sizes']
+        self.video_file = source_config['movie']['video_file']
+        self.total_frames = self.get_total_frames(self.video_file)
+        self.source_framerate = self.get_fps(self.video_file)
 
         '''
         Everything will happen in the working directory (remember trailing slash!).
         Make a symlink to the video in this directory
         '''
-        self.video_file = source_config['movie']['video_file']
         self.mqtt_broker_addr = "192.168.1.135"
         self.mqtt_topic = "slowmovie/frame"
 
         #Don't edit these:
-        self.framecount_json = os.path.join(self.working_dir, "framecount.json")
-        self.frame_capture = os.path.join(self.working_dir, "frame.png")
+        self.framecount_json = os.path.join(self.working_dir, f"{self.prefix}_count.json")
+        self.frame_capture = os.path.join(self.working_dir, f"{self.prefix}.png")
+
+    def get_total_frames(self, video_file: str) -> int:
+        cmd = f"ffmpeg -i {video_file} -vcodec copy -f rawvideo -y /dev/null 2>&1 | tr ^M '\n' | awk '/^frame=/ {{print $2}}'|tail -n 1"
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
+        return int(result.stdout)
+
+    def get_fps(self, video_file: str) -> int:
+        cmd = f'ffprobe {video_file} 2>&1| grep ",* fps" | cut -d "," -f 5 | cut -d " " -f 2'
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
+        return int(result.stdout)
 
     def process_next_frame(self):
         '''
@@ -82,7 +92,7 @@ class SlowMovie:
         #Convert to PBM
         conversion_count = 0
         for screen in self.screens:
-            if self.convert_to_pbm(self.frame_capture, os.path.join(self.working_dir, f"frame-{screen['name']}.pbm"), screen['x'], screen['y']) == False:
+            if self.convert_to_pbm(self.frame_capture, os.path.join(self.working_dir, f"{self.prefix}-{screen['name']}.pbm"), screen['x'], screen['y']) == False:
                 print(f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}")
             else:
                 conversion_count += 1

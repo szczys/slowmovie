@@ -17,5 +17,8 @@ Configure your inputs and screen sizes in the `yml` files.
 ## Crontab
 
 Run this script every minute using the following crontab job:
-`* * * * * cd /home/mike/compile/slowmovie && /usr/bin/python3 -c "from slowmovie_framepublisher import processNextFrame; processNextFrame()"`
+
+```
+* * * * * /home/mike/compile/slowmovie/slowmovie_framepublisher.py
+```
 

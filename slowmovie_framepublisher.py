@@ -15,7 +15,6 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-import re
 import subprocess
 import json
 import paho.mqtt.client as mqtt
@@ -39,8 +38,7 @@ class SlowMovie:
         self.totalFrames = source_config['movie']['totalFrames']
         self.sourceFrameate = source_config['movie']['sourceFrameRate']
         self.frame_divisor = source_config['movie']['frame_divisor'] #How many frames to wait before pushing new image to display
-        self.screensize_x = hardware_config['screen_sizes'][0]['x']
-        self.screensize_y = hardware_config['screen_sizes'][0]['y']
+        self.screens = hardware_config['screen_sizes']
 
         '''
         Everything will happen in the working directory (remember trailing slash!).
@@ -84,9 +82,16 @@ class SlowMovie:
             return
 
         #Convert to PBM
-        if self.convert_to_pbm(self.frameCapture, self.screensize_x, self.screensize_y) == None:
-            print("Abort: Unable to convert captured frame to XBM")
+        conversion_count = 0
+        for screen in self.screens:
+            if self.convert_to_pbm(self.frameCapture, screen['name'], screen['x'], screen['y']) == False:
+                print(f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}")
+            else:
+                conversion_count += 1
+        if conversion_count == 0:
+            print("Abort: Unable to convert captured frame to any supplied screen size")
             return
+
 
         #Publish message to MQTT
         self.publish_mqtt(self.mqttBrokerAddr, self.mqttTopic, str(datetime.datetime.now()))
@@ -139,12 +144,12 @@ class SlowMovie:
             print("FFMEG failed to grab a frame")
             return None
 
-    def convert_to_pbm(self, image, x_size, y_size, rotate=0):
+    def convert_to_pbm(self, image: str, variant_name: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
         cmd = (
-                f'convert {self.frameCapture} -gravity center +repage -rotate {rotate} '
+                f'convert {image} -gravity center +repage -rotate {rotate} '
                 f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
                 f'-background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1.2 '
-                f'-sharpen 0x2 -dither FloydSteinberg -negate {self.inputPBMfile}'
+                f'-sharpen 0x2 -dither FloydSteinberg -negate {self.workingDir}frame-{variant_name}.pbm'
             )
         print(cmd)
 
@@ -153,7 +158,7 @@ class SlowMovie:
             return True
         except:
             print("Failed to convert image to XBM")
-            return None
+            return False
 
     def publish_mqtt(self, broker,topic,message):
         mqttBroker = broker

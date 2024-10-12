@@ -17,21 +17,22 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 import subprocess
 import json
+import os
 import paho.mqtt.client as mqtt
 import datetime
 import yaml
 
 class SlowMovie:
-    def __init__(self, source_yaml: str | None = None, hardware_yaml: str | None = None):
+    def __init__(self, source_yaml: str | None = None, hardware_yaml: str | None = None, working_dir: str | None = None):
         '''
         Get framecount (minus one for zero index:
         ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
         '''
-        self.workingDir = "/home/mike/compile/slowmovie/"
+        self.workingDir = working_dir or os.path.dirname(os.path.realpath(__file__))
 
-        with open(source_yaml or f'{self.workingDir}slowmovie-source.yml', 'r') as file:
+        with open(source_yaml or os.path.join(self.workingDir, 'slowmovie-source.yml'), 'r') as file:
             source_config = yaml.safe_load(file)
-        with open(hardware_yaml or f'{self.workingDir}slowmovie-hardware.yml', 'r') as file:
+        with open(hardware_yaml or os.path.join(self.workingDir, 'slowmovie-hardware.yml'), 'r') as file:
             hardware_config = yaml.safe_load(file)
 
 
@@ -49,11 +50,11 @@ class SlowMovie:
         self.mqttTopic = "slowmovie/frame"
 
         #Don't edit these:
-        self.framecountJSON = self.workingDir + "framecount.json"
-        self.videoFile = self.workingDir + self.videoFile
-        self.frameCapture = self.workingDir + "frame.png"
-        self.inputXBMfile = self.workingDir + "frame.xbm"
-        self.inputPBMfile = self.workingDir + "frame.pbm"
+        self.framecountJSON = os.path.join(self.workingDir, "framecount.json")
+        self.videoFile = os.path.join(self.workingDir, self.videoFile)
+        self.frameCapture = os.path.join(self.workingDir, "frame.png")
+        self.inputXBMfile = os.path.join(self.workingDir, "frame.xbm")
+        self.inputPBMfile = os.path.join(self.workingDir, "frame.pbm")
 
     def process_next_frame(self):
         '''
@@ -145,11 +146,12 @@ class SlowMovie:
             return None
 
     def convert_to_pbm(self, image: str, variant_name: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
+        outfile = os.path.join(self.workingDir, f'frame-{variant_name}.pbm')
         cmd = (
                 f'convert {image} -gravity center +repage -rotate {rotate} '
                 f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
                 f'-background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1.2 '
-                f'-sharpen 0x2 -dither FloydSteinberg -negate {self.workingDir}frame-{variant_name}.pbm'
+                f'-sharpen 0x2 -dither FloydSteinberg -negate {outfile}'
             )
         print(cmd)
 

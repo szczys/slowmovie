@@ -1,7 +1,8 @@
 wifi_credentials.h
 __pycache__
-frame.png
-frame.xbm
+*.png
+*.xbm
+*.pbm
 framecount.json
 *.mkv
 *.mp4

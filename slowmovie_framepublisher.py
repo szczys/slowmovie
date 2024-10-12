@@ -17,14 +17,17 @@ import re
 import subprocess
 import json
 import paho.mqtt.client as mqtt
+import datetime
 
 '''
 Get framecount (minus one for zero index:
    ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
 '''
-totalFrames = 196455
-sourceFrameate = 23.98
-
+totalFrames = 181104
+sourceFrameate = 24
+frame_divisor = 5      #How many frames to wait before pushing new image to display
+screensize_x = 640
+screensize_y = 384
 '''
 Everything will happen in the working directory (remember trailing slash!).
 Make a symlink to the video in this directory
@@ -40,6 +43,7 @@ videoFile = workingDir + videoFile
 frameCapture = workingDir + "frame.png"
 inputXBMfile = workingDir + "frame.xbm"
 outputXBMfile = workingDir + "output.xbm" #this is likely deprecated
+inputPBMfile = workingDir + "frame.pbm"
 
 def processNextFrame():
     '''
@@ -67,31 +71,21 @@ def processNextFrame():
         print("Abort: Unable to grab next frame from video")
         return
 
-    #Convert to XBM
-    if convertToXBM(frameCapture) == None:
+    #Convert to PBM
+    if convertToPBM(frameCapture, screensize_x, screensize_y) == None:
         print("Abort: Unable to convert captured frame to XBM")
         return
 
-    #Get formatted string from XBM data
-    xbmArray = getXBM(inputXBMfile)
-    if xbmArray == None:
-        print("Abort: Unable to import XBM array data")
-    mqttMessage = outputSingleString(xbmArray)
-    #print(mqttMessage)
-
     #Publish message to MQTT
-    publishMQTT(mqttBrokerAddr, mqttTopic, mqttMessage)
+    publishMQTT(mqttBrokerAddr, mqttTopic, str(datetime.datetime.now()))
 
     #Increment framecount and save
-    framecount['nextframe'] += 1
+    framecount['nextframe'] += frame_divisor
     if framecount['nextframe'] >= framecount['totalframes']:
         framecount['nextframe'] = 0
     if saveFramecount(framecountJSON, framecount) == False:
         print("Abort: failed to save new framecount")
         return
-    else:
-        print("Successfully sent next frame via MQTT")
-    
 
 def getSavedFramecount(jsonfile):
     #Import JSON to get next frame count
@@ -139,7 +133,6 @@ def fixHexArray(hexList):
         print(invertAndSwitchEndian(hexList[i]),end='')
         if (i+1)%16 == 0:
             print(',\n    ',end='')
-            
         else:
             print(',',end='')
     print('')
@@ -196,9 +189,35 @@ def convertToXBM(image):
         print("Failed to convert image to XBM")
         return None
 
+def convertToPBM(image, x_size, y_size, rotate=0):
+    ## Old convert style
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -dither FloydSteinberg {inputPBMfile}'
+    ## Cropped
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}^" -gravity center -crop {x_size}x{y_size}+0+0 -remap pattern:gray50 -negate {inputPBMfile}'
+    ## Letterbox
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -remap pattern:gray50 -negate {inputPBMfile}'
+    ## Letterbox brighter
+    #cmd = f'convert {frameCapture} -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1 -negate {inputPBMfile}'
+    ## Cut out letterbox from original and then add letterbox brighter
+    #cmd = f'convert {frameCapture} -gravity center -crop 720x358+0+0 +repage -rotate {rotate} -resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 -background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 2 -sharpen 0x2 -dither FloydSteinberg -negate {inputPBMfile}'
+    cmd = (
+            f'convert {frameCapture} -gravity center +repage -rotate {rotate} '
+            f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
+            f'-background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1.2 '
+            f'-sharpen 0x2 -dither FloydSteinberg -negate {inputPBMfile}'
+          )
+    print(cmd)
+
+    try:
+        subprocess.run(cmd, shell=True)
+        return True
+    except:
+        print("Failed to convert image to XBM")
+        return None
+
 def publishMQTT(broker,topic,message):
     mqttBroker = broker
-    client = mqtt.Client("slowmovie_frame_grabber")
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
     client.connect(mqttBroker)
     client.publish(topic, message)
     client.disconnect()

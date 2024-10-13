@@ -1,5 +1,5 @@
 movie:
-  video_file: "input.mkv"
+  video_file: "/home/mike/compile/slowmovie/input.mkv"
 
 mqtt:
   addr: "192.168.1.135"

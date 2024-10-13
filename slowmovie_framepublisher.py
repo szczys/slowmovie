@@ -34,10 +34,10 @@ class SourceVideo:
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
         return int(result.stdout)
 
-    def get_fps(self, video_file: str) -> int:
+    def get_fps(self, video_file: str) -> float:
         cmd = f'ffprobe {video_file} 2>&1| grep ",* fps" | cut -d "," -f 5 | cut -d " " -f 2'
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
-        return int(result.stdout)
+        return float(result.stdout)
 
     def harvest_frame(self, frame_count: int, video_in: str | None = None, frame_out: str | None = None, framerate: int | None = None) -> bool:
         v_in = video_in or self.video_file

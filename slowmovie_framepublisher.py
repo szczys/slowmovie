@@ -52,7 +52,7 @@ class SourceVideo:
         hours=int((frame_millis/(1000*60*60))%24)
         timestamp = str(hours) + ":" + str(minutes) + ":" + str(seconds) + "." + str(millis)
 
-        cmd = f'/usr/bin/ffmpeg -y -ss "{timestamp}" -i {v_in} -frames:v 1 {f_out}'
+        cmd = f'/usr/bin/ffmpeg -y -ss "{timestamp}" -i {v_in} -frames:v 1 -update 1 {f_out}'
         print(cmd)
         try:
             subprocess.run(cmd, shell=True)

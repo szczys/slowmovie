@@ -49,7 +49,7 @@ Adjust your configuration in the `slowmovie-config.yml` file.
 
 ```yaml
 movie:
-  video_file: "input.mkv"
+  video_file: "/home/mike/compile/slowmovie/input.mkv"
   prefix: "frame"   # Optional
   frame_divisor: 5  # Optional
 
@@ -73,5 +73,5 @@ Run the frame publishing script every 4 minutes using the following crontab
 job:
 
 ```
-*/4 * * * * /home/mike/compile/slowmovie/slowmovie_framepublisher.py
+*/4 * * * * bash -lc /home/mike/compile/slowmovie/slowmovie_framepublisher.py
 ```

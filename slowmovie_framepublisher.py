@@ -30,7 +30,7 @@ class SourceVideo:
         self.frame_capture = os.path.join(working_dir, f"{prefix}.png")
 
     def get_total_frames(self, video_file: str) -> int:
-        cmd = f"ffmpeg -i {video_file} -vcodec copy -f rawvideo -y /dev/null 2>&1 | tr ^M '\n' | awk '/^frame=/ {{print $2}}'|tail -n 1"
+        cmd = f"ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 {video_file}"
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
         return int(result.stdout)
 

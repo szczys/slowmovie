@@ -38,11 +38,12 @@
 /* MQTT Server for triggering a frame update */
 const char* mqtt_server = "192.168.1.135";
 const char* mqtt_topic = "slowmovie/frame";
-const char* vbat_topic = "vbat";
 static bool vbat_sent = false;
 
 #define DEVICE_NAME_MAX_LEN 32
+#define VBAT_TOPIC_SUFFIX "vbat"
 char device_name[DEVICE_NAME_MAX_LEN];
+char vbat_topic[DEVICE_NAME_MAX_LEN + sizeof(VBAT_TOPIC_SUFFIX) + 1];
 
 /* PBM image file download for acquiring a new frame */
 int    HTTP_PORT   = 80;
@@ -211,6 +212,8 @@ void set_device_name(void)
       mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
 
   Serial.println(device_name);
+
+  snprintf(vbat_topic, sizeof(vbat_topic), "%s/%s", &device_name, VBAT_TOPIC_SUFFIX);
 }
 
 void setup()
@@ -245,6 +248,8 @@ void setup()
 
   //update_display((uint8_t *) elf, false);
 
+  connect();
+
   Serial.println("setup done");
 }
 
@@ -273,9 +278,9 @@ void messageReceived(MQTTClient *client, char topic[], char message[], int lengt
   Serial.print(topic);
   Serial.println();
 
-  if (String(topic) == mqtt_topic) {
-    Serial.println("MQTT indicated a new frame is available");
-    pending_download = true;
+  if (String(topic) == vbat_topic) {
+    Serial.println("VBATT Sent");
+    vbat_sent = true;
   }
 }
 
@@ -295,7 +300,7 @@ void shift_header_buf_left(uint8_t *slice) {
   slice[7] == 0;
 }
 
-void reconnect() {
+void connect() {
   Serial.print("checking wifi...");
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
@@ -310,12 +315,8 @@ void reconnect() {
 
   Serial.println("\nconnected!");
 
-  //client.subscribe(mqtt_topic);
-  // client.unsubscribe("/hello");
-}
+  client.subscribe(vbat_topic);
 
-void onConnectionEstablished()
-{
   float measuredvbat = analogReadMilliVolts(VBATPIN);
   measuredvbat *= 2;    // we divided by 2, so multiply back
   measuredvbat /= 1000; // convert to volts!
@@ -324,8 +325,6 @@ void onConnectionEstablished()
   char voltage[32];
   snprintf(voltage, sizeof(voltage), "%f", measuredvbat);
   client.publish(vbat_topic, voltage);
-  delay(2000);
-  vbat_sent = true;
 }
 
 void loop()
@@ -334,7 +333,7 @@ void loop()
 
   if (!client.connected()) {
     //Fixme: add timeout and sleep so we don't run down battery awaiting connection.
-    reconnect();
+    connect();
   }
 
   if (download_image()) {

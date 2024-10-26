@@ -27,6 +27,7 @@
  */
 #include "wifi_credentials.h"
 #include "elf.h"
+#include "esp_mac.h"
 
 #define DEBUG        1
 #define MSG_BUF_SIZE 50000
@@ -37,8 +38,11 @@
 /* MQTT Server for triggering a frame update */
 const char* mqtt_server = "192.168.1.135";
 const char* mqtt_topic = "slowmovie/frame";
-const char* vbat_topic = "/vbat";
+const char* vbat_topic = "vbat";
 static bool vbat_sent = false;
+
+#define DEVICE_NAME_MAX_LEN 32
+char device_name[DEVICE_NAME_MAX_LEN];
 
 /* PBM image file download for acquiring a new frame */
 int    HTTP_PORT   = 80;
@@ -197,15 +201,30 @@ void validate_and_display() {
     }
 }
 
+void set_device_name(void)
+{
+  unsigned char mac_base[6] = {0};
+  esp_efuse_mac_get_default(mac_base);
+
+  snprintf(device_name, DEVICE_NAME_MAX_LEN,
+      "slowmovie-750-%02X:%02X:%02X:%02X:%02X:%02X", mac_base[0], mac_base[1],
+      mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
+
+  Serial.println(device_name);
+}
+
 void setup()
 {
   Serial.begin(115200);
   Serial.println();
   Serial.println("setup");
+
   if (DEBUG) {
     Serial.print("Heap available: ");
     Serial.println(ESP.getFreeHeap());
   }
+
+  set_device_name();
 
   // Cut power to ws2812
   pinMode(NEOPIXEL_I2C_POWER, OUTPUT);
@@ -284,7 +303,7 @@ void reconnect() {
   }
 
   Serial.print("\nconnecting...");
-  while (!client.connect("epd75")) {
+  while (!client.connect(device_name)) {
     Serial.print(".");
     delay(1000);
   }

@@ -18,9 +18,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 import subprocess
 import json
 import os
-import paho.mqtt.client as mqtt
-import datetime
 import yaml
+import anyio
+import semver
+from pathlib import Path
+from golioth import Client
+
+import credentials
+"""
+An API key for Golioth is required. Create a file called credentials.py and populate it's contest as follows:
+
+api_key = "your_golioth_project_api_key"
+"""
 
 class SourceVideo:
     def __init__(self, video_file: str, prefix: str, working_dir: str):
@@ -62,21 +71,6 @@ class SourceVideo:
             return False
 
 
-class MQTTClient:
-    def __init__(self, broker_addr: str, topic: str):
-        self.broker_addr = broker_addr
-        self.topic = topic
-
-    def publish(self,message: str, broker: str | None = None,topic: str | None = None):
-        m_addr = broker or self.broker_addr
-        m_topic = topic or self.topic
-
-        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
-        client.connect(m_addr)
-        client.publish(m_topic, message)
-        client.disconnect()
-
-
 class SlowMovie:
     def __init__(self, config_yaml: str | None = None, working_dir: str | None = None):
         '''
@@ -93,12 +87,11 @@ class SlowMovie:
         self.screens = config['screen_sizes']
 
         self.video = SourceVideo(config['movie']['video_file'], self.prefix, self.working_dir)
-        self.mqtt = MQTTClient(config['mqtt']['addr'], config['mqtt']['topic'])
 
         #Don't edit these:
         self.framecount_json = os.path.join(self.working_dir, f"{self.prefix}_count.json")
 
-    def process_next_frame(self):
+    async def process_next_frame(self):
         '''
         Workflow:
         * lookup next frame number
@@ -111,16 +104,16 @@ class SlowMovie:
 
         #Import JSON
         framecount = self.get_saved_frame_count(self.framecount_json)
-        if framecount == None:
+        if framecount is None:
             #Error getting JSON, try to generate a new one
             print("Trying to generate new JSON file")
             framecount = {'totalframes': self.video.total_frames, 'nextframe': 0}
-            if (self.save_frame_count(self.framecount_json, framecount) == False):
+            if not self.save_frame_count(self.framecount_json, framecount):
                 print("Abort: JSON file cannot be saved")
                 return
 
         #Grab next frame
-        if self.video.harvest_frame(framecount['nextframe']) == False:
+        if not self.video.harvest_frame(framecount['nextframe']):
             print("Abort: Unable to grab next frame from video")
             return
 
@@ -128,7 +121,7 @@ class SlowMovie:
         conversion_count = 0
         for screen in self.screens:
             outfile = os.path.join(self.working_dir, f"{self.prefix}-{screen['name']}.pbm")
-            if self.convert_to_pbm(self.video.frame_capture, outfile, screen['x'], screen['y']) == False:
+            if not self.convert_to_pbm(self.video.frame_capture, outfile, screen['x'], screen['y']):
                 print(f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}")
             else:
                 conversion_count += 1
@@ -136,14 +129,30 @@ class SlowMovie:
             print("Abort: Unable to convert captured frame to any supplied screen size")
             return
 
-        #Publish message to MQTT
-        self.mqtt.publish(str(datetime.datetime.now()))
+        #Publish frame to Golioth
+        c = Client(api_key=credentials.api_key)
+        projs = await c.get_projects()
+        p = projs[0]
+        artifacts = await p.artifacts.get_all()
+        newest = semver.Version.parse("0.0.0")
+        newest_a = None
+        for a in artifacts:
+            test_ver = semver.Version.parse(a.version)
+            if test_ver > newest:
+                newest = test_ver
+                newest_a = a
+
+        next_ver = newest.bump_patch()
+        art = await p.artifacts.upload(Path('frame-800x480.pbm'), str(next_ver), 'main')
+        cohort = await p.cohorts.get("slowmovie")
+        await cohort.deployments.create("frame", [art.id])
+        await p.artifacts.delete(newest_a.id)
 
         #Increment framecount and save
         framecount['nextframe'] += self.frame_divisor
         if framecount['nextframe'] >= framecount['totalframes']:
             framecount['nextframe'] = 0
-        if self.save_frame_count(self.framecount_json, framecount) == False:
+        if not self.save_frame_count(self.framecount_json, framecount):
             print("Abort: failed to save new framecount")
             return
 
@@ -152,7 +161,7 @@ class SlowMovie:
         try:
             with open(jsonfile) as f:
                 framecount = json.load(f)
-        except:
+        except Exception:
             print("Unable to open JSON file %s" % self.framecount_json)
             return None
         return framecount
@@ -164,27 +173,30 @@ class SlowMovie:
             with open(jsonfile, 'w') as f:
                 json.dump(count_dict, f)
             print("Successfully generated JSON file")
-        except:
+        except Exception:
             print("Unable to write JSON file %s" % self.framecount_json)
             return False
         return True
 
     def convert_to_pbm(self, input_image: str, output_image: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
         cmd = (
-                f'convert {input_image} -gravity center +repage -rotate {rotate} '
+                f'magick {input_image} -gravity center +repage -rotate {rotate} '
                 f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
-                f'-background black -extent "{x_size}x{y_size}" -colorspace Gray -gamma 1.2 '
-                f'-sharpen 0x2 -dither FloydSteinberg -negate {output_image}'
+                f'-background black -extent "{x_size}x{y_size}" -gamma 1.2 -colorspace Gray '
+                f'-dither FloydSteinberg -colors 2 -negate {output_image}'
             )
         print(cmd)
 
         try:
             subprocess.run(cmd, shell=True)
             return True
-        except:
+        except Exception:
             print("Failed to convert image to XBM")
             return False
 
-if __name__ == "__main__":
+async def main():
     frame_getter = SlowMovie()
-    frame_getter.process_next_frame()
+    await frame_getter.process_next_frame()
+
+if __name__ == "__main__":
+    anyio.run(main)

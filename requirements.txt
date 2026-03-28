@@ -1,2 +1,4 @@
 paho-mqtt==2.1.0
 PyYAML==6.0.2
+semver==3.0.4
+golioth @ git+https://github.com/golioth/python-golioth-tools@v0.8.1

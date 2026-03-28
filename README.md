@@ -75,3 +75,10 @@ job:
 ```
 */4 * * * * bash -lc /home/mike/compile/slowmovie/slowmovie_framepublisher.py
 ```
+
+## Get Frame Count
+
+```
+ffprobe -v error -select_streams v:0 -count_packets \
+        -show_entries stream=nb_read_packets -of csv=p=0 input.mkv
+```

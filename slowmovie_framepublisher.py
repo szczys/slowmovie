@@ -26,7 +26,7 @@ from golioth import Client
 
 import credentials
 """
-An API key for Golioth is required. Create a file called credentials.py and populate it's contest as follows:
+An API key for Golioth is required. Create a file called credentials.py and populate its contest as follows:
 
 api_key = "your_golioth_project_api_key"
 """
@@ -135,18 +135,22 @@ class SlowMovie:
         p = projs[0]
         artifacts = await p.artifacts.get_all()
         newest = semver.Version.parse("0.0.0")
-        newest_a = None
         for a in artifacts:
             test_ver = semver.Version.parse(a.version)
             if test_ver > newest:
                 newest = test_ver
-                newest_a = a
 
         next_ver = newest.bump_patch()
-        art = await p.artifacts.upload(Path('frame-800x480.pbm'), str(next_ver), 'main')
-        cohort = await p.cohorts.get("slowmovie")
-        await cohort.deployments.create("frame", [art.id])
-        await p.artifacts.delete(newest_a.id)
+
+        try:
+            art = await p.artifacts.upload(Path('frame-800x480.pbm'), str(next_ver), 'frame')
+            await p.settings.set("FRAME", f"/.u/c/frame@{str(next_ver)}")
+            for a in artifacts:
+                if a != art:
+                    await p.artifacts.delete(a.id)
+        except Exception as e:
+            print(f"Failed to upload frame: {str(e)}")
+            return
 
         #Increment framecount and save
         framecount['nextframe'] += self.frame_divisor

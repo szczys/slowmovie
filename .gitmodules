@@ -1,0 +1,12 @@
+[submodule "firmware/components/adafruit_gfx/Adafruit-GFX"]
+	path = firmware/components/adafruit_gfx/Adafruit-GFX
+	url = https://github.com/adafruit/Adafruit-GFX-Library.git
+[submodule "firmware/components/adafruit_busio/Adafruit_BusIO"]
+	path = firmware/components/adafruit_busio/Adafruit_BusIO
+	url = https://github.com/adafruit/Adafruit_BusIO.git
+[submodule "firmware/components/gxepd2/GxEPD2"]
+	path = firmware/components/gxepd2/GxEPD2
+	url = https://github.com/ZinggJM/GxEPD2.git
+[submodule "firmware/components/golioth-firmware-sdk"]
+	path = firmware/components/golioth-firmware-sdk
+	url = https://github.com/golioth/golioth-firmware-sdk

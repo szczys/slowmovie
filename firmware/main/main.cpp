@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "credentials.h"
+#include "console.h"
 #include "epaper.hpp"
 #include "golioth.h"
 #include "wifi.h"
@@ -20,6 +21,8 @@
 extern "C" void app_main()
 {
     initArduino();
+
+    console_init();
 
     struct slowmovie_creds creds;
     int err = cred_load_all(&creds);

@@ -26,6 +26,9 @@ struct frame_context {
 #define MSG_BUF_SIZE 50000
 #define FRAME_MONITOR_STACK_SIZE 2048
 
+extern const uint8_t ca_pem_start[] asm("_binary_isrgrootx1_goliothrootx1_pem_start");
+extern const uint8_t ca_pem_end[] asm("_binary_isrgrootx1_goliothrootx1_pem_end");
+
 static void on_client_event(struct golioth_client *client,
                             enum golioth_client_event event, void *arg) {
   bool is_connected = (event == GOLIOTH_CLIENT_EVENT_CONNECTED);
@@ -169,7 +172,7 @@ void frame_monitor_task( void * pvParameters )
     }
 }
 
-void golioth_register_frames(golioth_frame_cb_t cb)
+void golioth_register_frames(struct slowmovie_creds *creds, golioth_frame_cb_t cb)
 {
     if (NULL == cb)
     {
@@ -192,14 +195,16 @@ void golioth_register_frames(golioth_frame_cb_t cb)
     }
 
     struct golioth_client_config client_config = {
-            .credentials = {
-                    .auth_type = GOLIOTH_TLS_AUTH_TYPE_PSK,
-                    .psk = {
-                            .psk_id = GOLIOTH_PSK_ID,
-                            .psk_id_len = strlen(GOLIOTH_PSK_ID),
-                            .psk = GOLIOTH_PSK,
-                            .psk_len = strlen(GOLIOTH_PSK),
-                    }}};
+        .credentials = {
+            .auth_type = GOLIOTH_TLS_AUTH_TYPE_PKI,
+            .pki = {
+                .ca_cert = ca_pem_start,
+                .ca_cert_len = ca_pem_end - ca_pem_start,
+                .public_cert = creds->crt_pem.buf,
+                .public_cert_len = creds->crt_pem.len,
+                .private_key = creds->key_pem.buf,
+                .private_key_len = creds->key_pem.len,
+            }}};
 
     golioth_frame_ctx.client = golioth_client_create(&client_config);
     golioth_client_register_event_callback(golioth_frame_ctx.client,

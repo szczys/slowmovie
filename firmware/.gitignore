@@ -4,4 +4,4 @@ dependencies.lock
 managed_components/
 sdkconfig
 sdkconfig.old
-credentials.h
+*.csv

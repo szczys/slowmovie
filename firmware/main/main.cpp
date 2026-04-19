@@ -29,11 +29,6 @@ extern "C" void app_main()
         return;
     }
 
-    ESP_LOG_BUFFER_HEXDUMP(TAG, creds.wifi_ssid.buf, creds.wifi_ssid.len, ESP_LOG_INFO);
-    ESP_LOG_BUFFER_HEXDUMP(TAG, creds.wifi_psk.buf, creds.wifi_psk.len, ESP_LOG_INFO);
-    ESP_LOG_BUFFER_HEXDUMP(TAG, creds.crt_pem.buf, creds.crt_pem.len, ESP_LOG_INFO);
-    ESP_LOG_BUFFER_HEXDUMP(TAG, creds.key_pem.buf, creds.key_pem.len, ESP_LOG_INFO);
-
     start_wifi(&creds.wifi_ssid, &creds.wifi_psk);
 
     ESP_LOGI(TAG, "Slowmovie start.");

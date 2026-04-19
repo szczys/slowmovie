@@ -5,7 +5,9 @@ extern "C"
 
 #pragma once
 
-void start_wifi(void);
+#include "credentials.h"
+
+void start_wifi(struct credential *ssid, struct credential *psk);
 
 #ifdef __cplusplus
 }

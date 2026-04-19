@@ -12,7 +12,7 @@ extern "C"
 
 typedef void (*golioth_frame_cb_t)(const uint8_t *buf, size_t buf_len);
 
-void golioth_register_frames(golioth_frame_cb_t);
+void golioth_register_frames(struct slowmovie_creds *creds, golioth_frame_cb_t cb);
 
 #ifdef __cplusplus
 }

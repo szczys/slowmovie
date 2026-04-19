@@ -17,15 +17,16 @@
  * #define GOLIOTH_PSK_ID "your-psk"
  */
 
-extern "C" void app_main() {
+extern "C" void app_main()
+{
     initArduino();
 
     struct slowmovie_creds creds;
     int err = cred_load_all(&creds);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to load credentials.");
-      return;
+        ESP_LOGE(TAG, "Failed to load credentials.");
+        return;
     }
 
     ESP_LOG_BUFFER_HEXDUMP(TAG, creds.wifi_ssid.buf, creds.wifi_ssid.len, ESP_LOG_INFO);

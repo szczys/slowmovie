@@ -21,8 +21,8 @@ nvs_handle_t _handle;
 
 void cred_free(struct credential *cred)
 {
-  free(cred->buf);
-  cred->len = 0;
+    free(cred->buf);
+    cred->len = 0;
 }
 
 void cred_free_slowmovie(struct slowmovie_creds *creds)
@@ -36,7 +36,8 @@ void cred_free_slowmovie(struct slowmovie_creds *creds)
 static int cred_nvs_init(void)
 {
     esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
         // NVS partition was truncated and needs to be erased
         // Retry nvs_flash_init
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -57,8 +58,8 @@ static int cred_string_load(nvs_handle_t handle, const char *key, struct credent
     int err = nvs_get_str(handle, key, NULL, &cred->len);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to read %s len: %i", key, err);
-      return err;
+        ESP_LOGE(TAG, "Failed to read %s len: %i", key, err);
+        return err;
     }
 
     cred->buf = (uint8_t *) malloc(cred->len);
@@ -70,9 +71,9 @@ static int cred_string_load(nvs_handle_t handle, const char *key, struct credent
     err = nvs_get_str(handle, key, (char *) cred->buf, &cred->len);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to load %s from NVS: %i", key, err);
-      free(cred->buf);
-      return err;
+        ESP_LOGE(TAG, "Failed to load %s from NVS: %i", key, err);
+        free(cred->buf);
+        return err;
     }
 
     return 0;
@@ -84,8 +85,8 @@ static int cred_binary_load(nvs_handle_t handle, const char *key, struct credent
     int err = nvs_get_blob(handle, key, NULL, &cred->len);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to read %s len: %i", key, err);
-      return err;
+        ESP_LOGE(TAG, "Failed to read %s len: %i", key, err);
+        return err;
     }
 
     cred->buf = (uint8_t *) malloc(cred->len);
@@ -97,9 +98,9 @@ static int cred_binary_load(nvs_handle_t handle, const char *key, struct credent
     err = nvs_get_blob(handle, key, cred->buf, &cred->len);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to load %s from NVS: %i", key, err);
-      free(cred->buf);
-      return err;
+        ESP_LOGE(TAG, "Failed to load %s from NVS: %i", key, err);
+        free(cred->buf);
+        return err;
     }
 
     return 0;
@@ -113,7 +114,7 @@ static int cred_get_crt_as_pem(nvs_handle_t handle, struct credential *cred_pem)
     int ret = cred_binary_load(_handle, CRED_KEY_CRT_DER, &crt_der);
     if (0 != ret)
     {
-      goto free_der_and_return;
+        goto free_der_and_return;
     }
 
     max_pem_len = crt_der.len * 2;
@@ -124,15 +125,16 @@ static int cred_get_crt_as_pem(nvs_handle_t handle, struct credential *cred_pem)
         goto free_der_and_return;
     }
 
-    ret = mbedtls_pem_write_buffer(
-        "-----BEGIN CERTIFICATE-----\n",
-        "-----END CERTIFICATE-----\n",
-        crt_der.buf, crt_der.len,
-        cred_pem->buf, max_pem_len,
-        &cred_pem->len
-    );
+    ret = mbedtls_pem_write_buffer("-----BEGIN CERTIFICATE-----\n",
+                                   "-----END CERTIFICATE-----\n",
+                                   crt_der.buf,
+                                   crt_der.len,
+                                   cred_pem->buf,
+                                   max_pem_len,
+                                   &cred_pem->len);
 
-    if (ret != 0) {
+    if (ret != 0)
+    {
         ESP_LOGE(TAG, "Failed to convert CRT to PEM: -0x%04x", -ret);
         cred_free(cred_pem);
         goto free_der_and_return;
@@ -164,15 +166,17 @@ static int cred_get_key_as_pem(nvs_handle_t handle, struct credential *cred_pem)
     }
 
     mbedtls_pk_init(&pk);
-    ret = mbedtls_pk_parse_key(&pk, key_der.buf, key_der.len, NULL, 0,
-                               mbedtls_ctr_drbg_random, NULL);
-    if (ret != 0) {
-      ESP_LOGE(TAG, "Failed to parse DER key: -0x%04x", -ret);
-      goto free_all_and_return;
+    ret =
+        mbedtls_pk_parse_key(&pk, key_der.buf, key_der.len, NULL, 0, mbedtls_ctr_drbg_random, NULL);
+    if (ret != 0)
+    {
+        ESP_LOGE(TAG, "Failed to parse DER key: -0x%04x", -ret);
+        goto free_all_and_return;
     }
 
     ret = mbedtls_pk_write_key_pem(&pk, cred_pem->buf, max_pem_len);
-    if (ret != 0) {
+    if (ret != 0)
+    {
         ESP_LOGE(TAG, "Failed to convert key DER to PEM: -0x%04x", -ret);
         goto free_all_and_return;
     }
@@ -206,43 +210,43 @@ int cred_load_all(struct slowmovie_creds *creds)
     err = cred_nvs_init();
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to initialize NVS");
-      return err;
+        ESP_LOGE(TAG, "Failed to initialize NVS");
+        return err;
     }
 
     err = cred_handle_init(&_handle);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to initialize NVS handle");
-      return err;
+        ESP_LOGE(TAG, "Failed to initialize NVS handle");
+        return err;
     }
 
     err = cred_string_load(_handle, CRED_KEY_WIFI_SSID, &creds->wifi_ssid);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to load WiFi SSID");
-      goto free_and_return;
+        ESP_LOGE(TAG, "Failed to load WiFi SSID");
+        goto free_and_return;
     }
 
     err = cred_string_load(_handle, CRED_KEY_WIFI_PSK, &creds->wifi_psk);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to load WiFi PSK");
-      goto free_and_return;
+        ESP_LOGE(TAG, "Failed to load WiFi PSK");
+        goto free_and_return;
     }
 
     err = cred_get_crt_as_pem(_handle, &creds->crt_pem);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to load CRT");
-      goto free_and_return;
+        ESP_LOGE(TAG, "Failed to load CRT");
+        goto free_and_return;
     }
 
     err = cred_get_key_as_pem(_handle, &creds->key_pem);
     if (0 != err)
     {
-      ESP_LOGE(TAG, "Failed to load CRT");
-      goto free_and_return;
+        ESP_LOGE(TAG, "Failed to load CRT");
+        goto free_and_return;
     }
 
     return 0;

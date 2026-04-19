@@ -22,7 +22,13 @@ struct slowmovie_creds
     struct credential key_pem;
 };
 
+typedef int (*cred_set_fn_t)(const struct credential *cred);
+
 int cred_load_all(struct slowmovie_creds *creds);
+int cred_set_wifi_ssid(const struct credential *cred);
+int cred_set_wifi_psk(const struct credential *cred);
+int cred_set_device_crt(const struct credential *b64_der);
+int cred_set_device_key(const struct credential *b64_der);
 
 #ifdef __cplusplus
 }

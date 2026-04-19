@@ -1,5 +1,6 @@
 #include "esp_log.h"
 #include "credentials.h"
+#include "mbedtls/base64.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/pem.h"
 #include "mbedtls/pk.h"
@@ -16,8 +17,6 @@
 #define CRED_KEY_WIFI_PSK "wifi_psk"
 #define CRED_KEY_CRT_DER "crt_der"
 #define CRED_KEY_KEY_DER "key_der"
-
-nvs_handle_t _handle;
 
 void cred_free(struct credential *cred)
 {
@@ -47,11 +46,6 @@ static int cred_nvs_init(void)
     return err;
 }
 
-static int cred_handle_init(nvs_handle_t *handle)
-{
-    return nvs_open(STORAGE_NAMESPACE, NVS_READONLY, handle);
-}
-
 static int cred_string_load(nvs_handle_t handle, const char *key, struct credential *cred)
 {
     cred->len = MAX_CRED_LEN;
@@ -76,6 +70,29 @@ static int cred_string_load(nvs_handle_t handle, const char *key, struct credent
         return err;
     }
 
+    return 0;
+}
+
+static int cred_string_store(nvs_handle_t handle, const char *key, char *buf)
+{
+    int err = nvs_set_str(handle, key, (char *) buf);
+    if (0 != err)
+    {
+        ESP_LOGE(TAG, "Failed to set %s len: %i", key, err);
+        return err;
+    }
+    return 0;
+}
+
+static int cred_binary_store(nvs_handle_t handle, const char *key, struct credential *cred)
+{
+
+    int err = nvs_set_blob(handle, key, cred->buf, cred->len);
+    if (0 != err)
+    {
+        ESP_LOGE(TAG, "Failed to set %s len: %i", key, err);
+        return err;
+    }
     return 0;
 }
 
@@ -111,7 +128,7 @@ static int cred_get_crt_as_pem(nvs_handle_t handle, struct credential *cred_pem)
     size_t max_pem_len;
 
     struct credential crt_der;
-    int ret = cred_binary_load(_handle, CRED_KEY_CRT_DER, &crt_der);
+    int ret = cred_binary_load(handle, CRED_KEY_CRT_DER, &crt_der);
     if (0 != ret)
     {
         goto free_der_and_return;
@@ -151,7 +168,7 @@ static int cred_get_key_as_pem(nvs_handle_t handle, struct credential *cred_pem)
     mbedtls_pk_context pk;
 
     struct credential key_der;
-    int ret = cred_binary_load(_handle, CRED_KEY_KEY_DER, &key_der);
+    int ret = cred_binary_load(handle, CRED_KEY_KEY_DER, &key_der);
     if (0 != ret)
     {
         goto free_der_and_return;
@@ -214,44 +231,127 @@ int cred_load_all(struct slowmovie_creds *creds)
         return err;
     }
 
-    err = cred_handle_init(&_handle);
+    nvs_handle_t handle;
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READONLY, &handle);
     if (0 != err)
     {
         ESP_LOGE(TAG, "Failed to initialize NVS handle");
         return err;
     }
 
-    err = cred_string_load(_handle, CRED_KEY_WIFI_SSID, &creds->wifi_ssid);
+    err = cred_string_load(handle, CRED_KEY_WIFI_SSID, &creds->wifi_ssid);
     if (0 != err)
     {
         ESP_LOGE(TAG, "Failed to load WiFi SSID");
         goto free_and_return;
     }
 
-    err = cred_string_load(_handle, CRED_KEY_WIFI_PSK, &creds->wifi_psk);
+    err = cred_string_load(handle, CRED_KEY_WIFI_PSK, &creds->wifi_psk);
     if (0 != err)
     {
         ESP_LOGE(TAG, "Failed to load WiFi PSK");
         goto free_and_return;
     }
 
-    err = cred_get_crt_as_pem(_handle, &creds->crt_pem);
+    err = cred_get_crt_as_pem(handle, &creds->crt_pem);
     if (0 != err)
     {
         ESP_LOGE(TAG, "Failed to load CRT");
         goto free_and_return;
     }
 
-    err = cred_get_key_as_pem(_handle, &creds->key_pem);
+    err = cred_get_key_as_pem(handle, &creds->key_pem);
     if (0 != err)
     {
         ESP_LOGE(TAG, "Failed to load CRT");
         goto free_and_return;
     }
 
+    nvs_close(handle);
     return 0;
 
 free_and_return:
+    nvs_close(handle);
     cred_free_slowmovie(creds);
     return err;
+}
+
+static int cred_set_wifi(char *key, char *buf)
+{
+    nvs_handle_t handle;
+    int err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &handle);
+    if (0 != err)
+    {
+        ESP_LOGE(TAG, "Failed to open NVS: 0x%04x", -err);
+        return err;
+    }
+    return cred_string_store(handle, key, buf);
+
+    nvs_close(handle);
+}
+
+int cred_set_wifi_ssid(const struct credential *cred)
+{
+    return cred_set_wifi(CRED_KEY_WIFI_SSID, (char *) cred->buf);
+}
+
+int cred_set_wifi_psk(const struct credential *cred)
+{
+    return cred_set_wifi(CRED_KEY_WIFI_PSK, (char *) cred->buf);
+}
+
+static int cred_set_pki(char *key, char *b64_der)
+{
+    nvs_handle_t handle;
+    int ret = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &handle);
+    if (0 != ret)
+    {
+        ESP_LOGE(TAG, "Failed to open NVS: 0x%04x", -ret);
+        return ret;
+    }
+
+    struct credential cred;
+    size_t b64_der_len = strlen(b64_der) + 1;
+    cred.buf = (uint8_t *) malloc(b64_der_len);
+    if (NULL == cred.buf)
+    {
+        ESP_LOGE(TAG, "Failed to allocate credential buffer");
+        ret = ESP_ERR_NO_MEM;
+        goto free_and_return;
+    }
+
+    ret = mbedtls_base64_decode(cred.buf,
+                                b64_der_len,
+                                &cred.len,
+                                (unsigned char *) b64_der,
+                                strlen(b64_der));
+    if (0 != ret)
+    {
+        ESP_LOGE(TAG, "Failed to decode base64: %d", ret);
+        goto free_and_return;
+    }
+
+    ret = cred_binary_store(handle, key, &cred);
+    if (0 != ret)
+    {
+        ESP_LOGE(TAG, "Failed to store credential: 0x%04x", -ret);
+        goto free_and_return;
+    }
+
+    ESP_LOGI(TAG, "Credential stored (%zu bytes)", cred.len);
+
+free_and_return:
+    cred_free(&cred);
+    nvs_close(handle);
+    return ret;
+}
+
+int cred_set_device_crt(const struct credential *b64_cred)
+{
+    return cred_set_pki(CRED_KEY_CRT_DER, (char *) b64_cred->buf);
+}
+
+int cred_set_device_key(const struct credential *b64_cred)
+{
+    return cred_set_pki(CRED_KEY_KEY_DER, (char *) b64_cred->buf);
 }

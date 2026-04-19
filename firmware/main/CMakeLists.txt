@@ -1,6 +1,7 @@
 set(srcs
     "epaper.cpp"
     "credentials.c"
+    "console.c"
     "main.cpp"
     "golioth.c"
     "wifi.c"

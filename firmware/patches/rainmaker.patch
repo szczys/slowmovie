@@ -1,7 +1,0 @@
-diff --git a/components/golioth-firmware-sdk b/components/golioth-firmware-sdk
-index faa0704..f152816 160000
---- a/components/golioth-firmware-sdk
-+++ b/components/golioth-firmware-sdk
-@@ -1 +1 @@
--Subproject commit faa07040089ea055cb91386e183ae2c61c860ec5
-+Subproject commit f15281671a9dd5c14a5215021f4469a8e3071b37

@@ -21,6 +21,7 @@ import os
 import yaml
 import anyio
 import semver
+import sys
 from pathlib import Path
 from golioth import Client
 
@@ -44,9 +45,15 @@ class SourceVideo:
         return int(result.stdout)
 
     def get_fps(self, video_file: str) -> float:
-        cmd = f'ffprobe {video_file} 2>&1| grep ",* fps" | cut -d "," -f 5 | cut -d " " -f 2'
+        cmd = f'ffprobe {video_file} 2>&1| grep ",* fps"'
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
-        return float(result.stdout)
+
+        for i in result.stdout.split(','):
+            if ' fps' == i[-4:]:
+                return float(i.strip().split(' ')[0])
+
+        print(f"Error, fps not found in: {result.stdout}")
+        sys.exit(-1)
 
     def harvest_frame(self, frame_count: int, video_in: str | None = None, frame_out: str | None = None, framerate: int | None = None) -> bool:
         v_in = video_in or self.video_file

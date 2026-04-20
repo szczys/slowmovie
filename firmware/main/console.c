@@ -148,4 +148,8 @@ void console_init(void)
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd_psk));
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd_reset));
     ESP_ERROR_CHECK(esp_console_start_repl(repl));
+
+    /* Ensure console prompt printing clears before more logs */
+    vTaskDelay(pdMS_TO_TICKS(300));
+    printf("\n\n");
 }

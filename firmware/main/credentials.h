@@ -5,6 +5,7 @@ extern "C"
 
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -12,6 +13,7 @@ struct credential
 {
     uint8_t *buf;
     size_t len;
+    bool loaded;
 };
 
 struct slowmovie_creds

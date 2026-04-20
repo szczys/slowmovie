@@ -60,8 +60,16 @@ static EventGroupHandle_t s_wifi_event_group;
 
 static const char *TAG = "wifi station";
 
-static int s_retry_num = 0;
+#define MIN_BACKOFF_MS 5000
+#define MAX_BACKOFF_MS 640000
 
+static int backoff_ms = MIN_BACKOFF_MS;
+static TimerHandle_t reconnect_backoff_tim;
+
+void wifi_reconnect_timer_cb(TimerHandle_t xTimer)
+{
+    esp_wifi_connect();
+}
 
 static void event_handler(void *arg,
                           esp_event_base_t event_base,
@@ -74,23 +82,20 @@ static void event_handler(void *arg,
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
-        if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY)
+        xTimerChangePeriod(reconnect_backoff_tim, pdMS_TO_TICKS(backoff_ms), 0);
+        if (MAX_BACKOFF_MS > backoff_ms)
         {
-            esp_wifi_connect();
-            s_retry_num++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
+            ESP_LOGI(TAG, "retry to connect to the AP after %i seconds", backoff_ms / 1000);
+            /* prewind */
+            backoff_ms *= 2;
         }
-        else
-        {
-            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-        }
-        ESP_LOGI(TAG, "connect to the AP fail");
+        xTimerStart(reconnect_backoff_tim, -1);
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
+        backoff_ms = MIN_BACKOFF_MS;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
@@ -98,6 +103,11 @@ static void event_handler(void *arg,
 void wifi_init_sta(struct credential *ssid, struct credential *psk)
 {
     s_wifi_event_group = xEventGroupCreate();
+    reconnect_backoff_tim = xTimerCreate("backoff",
+                                         pdMS_TO_TICKS(MIN_BACKOFF_MS),
+                                         pdFALSE,
+                                         NULL,
+                                         wifi_reconnect_timer_cb);
 
     ESP_ERROR_CHECK(esp_netif_init());
 

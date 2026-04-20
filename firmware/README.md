@@ -57,44 +57,44 @@ writing it to the ESP32s3 using esptool.py.
 
 1. Install Python Tools
 
-  If you have ESP-IDF installed, the necessary Python tools are already
-  installed. Otherwise, they may be installed using `pip`.
+    If you have ESP-IDF installed, the necessary Python tools are already
+    installed. Otherwise, they may be installed using `pip`.
 
-  ```
-  pip install esp-idf-nvs-partition-gen esptool
-  ```
+    ```
+    pip install esp-idf-nvs-partition-gen esptool
+    ```
 
 2. Position Credentials as CSV
 
-  Generate an x509 certificate and upload the public CA cert to Golioth.
+    Generate an x509 certificate and upload the public CA cert to Golioth.
 
-  - [Golioth PKI
-    documentation](https://docs.golioth.io/connectivity/credentials/pki/offline-pki)
+    - [Golioth PKI
+        documentation](https://docs.golioth.io/connectivity/credentials/pki/offline-pki)
 
-  Create a file called `nvs.csv` that includes WiFi credentials and
-  location of your DER-formatted device certificate and device private
-  key.
+    Create a file called `nvs.csv` that includes WiFi credentials and
+    location of your DER-formatted device certificate and device private
+    key.
 
-  ```csv
-  key,type,encoding,value
-  slowmovie_creds,namespace,,
-  wifi_ssid,data,string,"your_wifi_ssid"
-  wifi_psk,data,string,"your_wifi_password"
-  crt_der,file,binary,/path/to/device.crt.der
-  key_der,file,binary,/path/to/device.key.der
-  ```
+    ```csv
+    key,type,encoding,value
+    slowmovie_creds,namespace,,
+    wifi_ssid,data,string,"your_wifi_ssid"
+    wifi_psk,data,string,"your_wifi_password"
+    crt_der,file,binary,/path/to/device.crt.der
+    key_der,file,binary,/path/to/device.key.der
+    ```
 
-  Change only the final portion of each of the last four lines to match
-  your credentials.
+    Change only the final portion of each of the last four lines to match
+    your credentials.
 
 3. Generate the NVS Binary
 
-  ```
-  python -m esp_idf_nvs_partition_gen generate nvs.csv nvs.bin 24576
-  ```
+    ```
+    python -m esp_idf_nvs_partition_gen generate nvs.csv nvs.bin 24576
+    ```
 
 4. Write the Binary to Device
 
-  ```
-  esptool.py write_flash 0x9000 nvs.bin
-  ```
+    ```
+    esptool.py write_flash 0x9000 nvs.bin
+    ```

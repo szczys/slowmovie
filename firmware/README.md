@@ -14,6 +14,41 @@ The device must be provisioned with:
 - WiFi SSID and PSK (password)
 - x509 certificates for connecting to Golioth
 
+Credentials may be stored on the device using any of two approaches:
+- Use the Console to store credentials
+- Generate an NVS binary with credentials and flash to the device
+
+### Set Credentials via Console
+
+The serial console includes commands to store all required credentials.
+Use the "help" command for example usage.
+
+1. Store WiFi Credentials
+
+    WiFi credentials are stored as simple strings:
+
+    ```
+    ssid <your_ssid>
+    psk <your_psk>
+    ```
+
+2. Store Device Credentials
+
+    Device credentials are submitted as base64-encoding for the DER
+    files. Command line tools may be used for the encoding:
+
+    ```
+    base64 --wrap=0 device.crt.der
+    base64 --wrap=0 device.key.der
+    ```
+
+    Paste the resulting string as part of the console commands
+
+    ```
+    crt <paste_your_base64_encoded_device_crt_der>
+    key <paste_your_base64_encoded_device_key_der>
+    ```
+
 ### Generate and Flash NVS Storage Partition
 
 Credentials are written to the device separately from flashing the

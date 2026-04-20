@@ -18,10 +18,37 @@
 #define CRED_KEY_CRT_DER "crt_der"
 #define CRED_KEY_KEY_DER "key_der"
 
+void print_credential_help(void)
+{
+    printf(
+        "\n"
+        "\t*****************************************************\n"
+        "\t* Failed to load credentials. Type \"help\" for       *\n"
+        "\t* guidance or follow the README.md instructions for *\n"
+        "\t* setting by flashing an NVS binary.                *\n"
+        "\t*****************************************************\n"
+        "\n");
+}
+
+void cred_init(struct credential *cred)
+{
+    cred->buf = NULL;
+    cred->len = 0;
+    cred->loaded = false;
+}
+
 void cred_free(struct credential *cred)
 {
     free(cred->buf);
-    cred->len = 0;
+    cred_init(cred);
+}
+
+void cred_init_slowmovie(struct slowmovie_creds *creds)
+{
+    cred_init(&creds->wifi_ssid);
+    cred_init(&creds->wifi_psk);
+    cred_init(&creds->crt_pem);
+    cred_init(&creds->key_pem);
 }
 
 void cred_free_slowmovie(struct slowmovie_creds *creds)
@@ -52,7 +79,7 @@ static int cred_string_load(nvs_handle_t handle, const char *key, struct credent
     int err = nvs_get_str(handle, key, NULL, &cred->len);
     if (0 != err)
     {
-        ESP_LOGE(TAG, "Failed to read %s len: %i", key, err);
+        ESP_LOGE(TAG, "Failed to read %s len: 0x%04X", key, err);
         return err;
     }
 
@@ -65,11 +92,12 @@ static int cred_string_load(nvs_handle_t handle, const char *key, struct credent
     err = nvs_get_str(handle, key, (char *) cred->buf, &cred->len);
     if (0 != err)
     {
-        ESP_LOGE(TAG, "Failed to load %s from NVS: %i", key, err);
+        ESP_LOGE(TAG, "Failed to load %s from NVS: 0x%04X", key, err);
         free(cred->buf);
         return err;
     }
 
+    cred->loaded = true;
     return 0;
 }
 
@@ -102,7 +130,7 @@ static int cred_binary_load(nvs_handle_t handle, const char *key, struct credent
     int err = nvs_get_blob(handle, key, NULL, &cred->len);
     if (0 != err)
     {
-        ESP_LOGE(TAG, "Failed to read %s len: %i", key, err);
+        ESP_LOGE(TAG, "Failed to read %s len: 0x%04X", key, err);
         return err;
     }
 
@@ -115,7 +143,7 @@ static int cred_binary_load(nvs_handle_t handle, const char *key, struct credent
     err = nvs_get_blob(handle, key, cred->buf, &cred->len);
     if (0 != err)
     {
-        ESP_LOGE(TAG, "Failed to load %s from NVS: %i", key, err);
+        ESP_LOGE(TAG, "Failed to load %s from NVS: 0x%04X", key, err);
         free(cred->buf);
         return err;
     }
@@ -128,6 +156,7 @@ static int cred_get_crt_as_pem(nvs_handle_t handle, struct credential *cred_pem)
     size_t max_pem_len;
 
     struct credential crt_der;
+    cred_init(&crt_der);
     int ret = cred_binary_load(handle, CRED_KEY_CRT_DER, &crt_der);
     if (0 != ret)
     {
@@ -157,6 +186,8 @@ static int cred_get_crt_as_pem(nvs_handle_t handle, struct credential *cred_pem)
         goto free_der_and_return;
     }
 
+    cred_pem->loaded = true;
+
 free_der_and_return:
     cred_free(&crt_der);
     return ret;
@@ -168,10 +199,11 @@ static int cred_get_key_as_pem(nvs_handle_t handle, struct credential *cred_pem)
     mbedtls_pk_context pk;
 
     struct credential key_der;
+    cred_init(&key_der);
     int ret = cred_binary_load(handle, CRED_KEY_KEY_DER, &key_der);
     if (0 != ret)
     {
-        goto free_der_and_return;
+        return ret;
     }
 
     max_pem_len = key_der.len * 2;
@@ -199,6 +231,7 @@ static int cred_get_key_as_pem(nvs_handle_t handle, struct credential *cred_pem)
     }
 
     cred_pem->len = strlen((char *) cred_pem->buf) + 1;
+    cred_pem->loaded = true;
     goto free_der_and_return;
 
 free_all_and_return:
@@ -210,19 +243,59 @@ free_der_and_return:
     return ret;
 }
 
+static bool cred_load_check_print(struct slowmovie_creds *creds)
+{
+    bool all_loaded = true;
+    printf("\n");
+
+    if (true == creds->wifi_ssid.loaded)
+    {
+        printf("✅ WiFi SSID Loaded\n");
+    }
+    else
+    {
+        printf("❌ WiFi SSID Failed to Load\n");
+        all_loaded = false;
+    }
+
+    if (true == creds->wifi_psk.loaded)
+    {
+        printf("✅ WiFi PSK Loaded\n");
+    }
+    else
+    {
+        printf("❌ WiFi PSK Failed to Load\n");
+        all_loaded = false;
+    }
+
+    if (true == creds->crt_pem.loaded)
+    {
+        printf("✅ Device CRT Loaded\n");
+    }
+    else
+    {
+        printf("❌ Device CRT Failed to Load\n");
+        all_loaded = false;
+    }
+
+    if (true == creds->key_pem.loaded)
+    {
+        printf("✅ Device KEY Loaded\n");
+    }
+    else
+    {
+        printf("❌ Device KEY Failed to Load\n");
+        all_loaded = false;
+    }
+
+    printf("\n");
+    return all_loaded;
+}
+
 int cred_load_all(struct slowmovie_creds *creds)
 {
     int err;
-
-    /* Initialization for structs instantiated at run time */
-    creds->wifi_ssid.buf = NULL;
-    creds->wifi_ssid.len = 0;
-    creds->wifi_psk.buf = NULL;
-    creds->wifi_psk.len = 0;
-    creds->crt_pem.buf = NULL;
-    creds->crt_pem.len = 0;
-    creds->key_pem.buf = NULL;
-    creds->key_pem.len = 0;
+    cred_init_slowmovie(creds);
 
     err = cred_nvs_init();
     if (0 != err)
@@ -236,44 +309,26 @@ int cred_load_all(struct slowmovie_creds *creds)
     if (0 != err)
     {
         ESP_LOGE(TAG, "Failed to initialize NVS handle");
+        print_credential_help();
         return err;
     }
 
-    err = cred_string_load(handle, CRED_KEY_WIFI_SSID, &creds->wifi_ssid);
-    if (0 != err)
-    {
-        ESP_LOGE(TAG, "Failed to load WiFi SSID");
-        goto free_and_return;
-    }
-
-    err = cred_string_load(handle, CRED_KEY_WIFI_PSK, &creds->wifi_psk);
-    if (0 != err)
-    {
-        ESP_LOGE(TAG, "Failed to load WiFi PSK");
-        goto free_and_return;
-    }
-
-    err = cred_get_crt_as_pem(handle, &creds->crt_pem);
-    if (0 != err)
-    {
-        ESP_LOGE(TAG, "Failed to load CRT");
-        goto free_and_return;
-    }
-
-    err = cred_get_key_as_pem(handle, &creds->key_pem);
-    if (0 != err)
-    {
-        ESP_LOGE(TAG, "Failed to load CRT");
-        goto free_and_return;
-    }
+    cred_string_load(handle, CRED_KEY_WIFI_SSID, &creds->wifi_ssid);
+    cred_string_load(handle, CRED_KEY_WIFI_PSK, &creds->wifi_psk);
+    cred_get_crt_as_pem(handle, &creds->crt_pem);
+    cred_get_key_as_pem(handle, &creds->key_pem);
 
     nvs_close(handle);
-    return 0;
 
-free_and_return:
-    nvs_close(handle);
-    cred_free_slowmovie(creds);
-    return err;
+    if (true != cred_load_check_print(creds))
+    {
+        print_credential_help();
+        nvs_close(handle);
+        cred_free_slowmovie(creds);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
 }
 
 static int cred_set_wifi(char *key, char *buf)
@@ -311,6 +366,7 @@ static int cred_set_pki(char *key, char *b64_der)
     }
 
     struct credential cred;
+    cred_init(&cred);
     size_t b64_der_len = strlen(b64_der) + 1;
     cred.buf = (uint8_t *) malloc(b64_der_len);
     if (NULL == cred.buf)

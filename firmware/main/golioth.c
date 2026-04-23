@@ -5,6 +5,8 @@
 #include <golioth/settings.h>
 #include <string.h>
 #include "golioth.h"
+#include "fw_update.h"
+#include "version.h"
 
 #define TAG "golioth"
 
@@ -25,7 +27,7 @@ struct frame_context
 } golioth_frame_ctx;
 
 #define MSG_BUF_SIZE 50000
-#define FRAME_MONITOR_STACK_SIZE 2048
+#define FRAME_MONITOR_STACK_SIZE 4096
 
 extern const uint8_t ca_pem_start[] asm("_binary_isrgrootx1_goliothrootx1_pem_start");
 extern const uint8_t ca_pem_end[] asm("_binary_isrgrootx1_goliothrootx1_pem_end");
@@ -218,6 +220,8 @@ void golioth_register_frames(struct slowmovie_creds *creds, golioth_frame_cb_t c
     struct golioth_settings *settings = golioth_settings_init(golioth_frame_ctx.client);
 
     golioth_settings_register_string(settings, "FRAME", on_new_frame_setting, &golioth_frame_ctx);
+
+    golioth_fw_update_init(golioth_frame_ctx.client, _current_version);
 
     /* Start task to handle frame downloads */
     BaseType_t frame_task;

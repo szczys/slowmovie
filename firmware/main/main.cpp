@@ -8,16 +8,6 @@
 
 #define TAG "main"
 
-/*
- * Create a file: main/credentials.h
- *
- * Contents:
- * #define EXAMPLE_ESP_WIFI_SSID "wifi-ssid"
- * #define EXAMPLE_ESP_WIFI_PASS "wifi-password"
- * #define GOLIOTH_PSK_ID "your-psk-id"
- * #define GOLIOTH_PSK_ID "your-psk"
- */
-
 extern "C" void app_main()
 {
     initArduino();

@@ -152,11 +152,16 @@ class SlowMovie:
         try:
             art = await p.artifacts.upload(Path('frame-800x480.pbm'), str(next_ver), 'frame')
             await p.settings.set("FRAME", f"/.u/c/frame@{str(next_ver)}")
-            for a in artifacts:
-                if a != art:
-                    await p.artifacts.delete(a.id)
         except Exception as e:
             print(f"Failed to upload frame: {str(e)}")
+            return
+
+        try:
+            for a in artifacts:
+                if a.package == 'frame' and a != art:
+                    await p.artifacts.delete(a.id)
+        except Exception as e:
+            print(f"Failed to delete frame: {str(e)}")
             return
 
         #Increment framecount and save

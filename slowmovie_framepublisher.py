@@ -26,11 +26,13 @@ from pathlib import Path
 from golioth import Client
 
 import credentials
+
 """
 An API key for Golioth is required. Create a file called credentials.py and populate its contest as follows:
 
 api_key = "your_golioth_project_api_key"
 """
+
 
 class SourceVideo:
     def __init__(self, video_file: str, prefix: str, working_dir: str):
@@ -41,65 +43,97 @@ class SourceVideo:
 
     def get_total_frames(self, video_file: str) -> int:
         cmd = f"ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 {video_file}"
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True,
+            shell=True,
+        )
         return int(result.stdout)
 
     def get_fps(self, video_file: str) -> float:
         cmd = f'ffprobe {video_file} 2>&1| grep ",* fps"'
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True, shell=True)
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True,
+            shell=True,
+        )
 
-        for i in result.stdout.split(','):
-            if ' fps' == i[-4:]:
-                return float(i.strip().split(' ')[0])
+        for i in result.stdout.split(","):
+            if " fps" == i[-4:]:
+                return float(i.strip().split(" ")[0])
 
         print(f"Error, fps not found in: {result.stdout}")
         sys.exit(-1)
 
-    def harvest_frame(self, frame_count: int, video_in: str | None = None, frame_out: str | None = None, framerate: int | None = None) -> bool:
+    def harvest_frame(
+        self,
+        frame_count: int,
+        video_in: str | None = None,
+        frame_out: str | None = None,
+        framerate: int | None = None,
+    ) -> bool:
         v_in = video_in or self.video_file
         f_out = frame_out or self.frame_capture
         v_frameRate = framerate or self.source_framerate
 
-        cadence = 1000/v_frameRate
+        cadence = 1000 / v_frameRate
         frame_millis = frame_count * cadence
-        millis=int(frame_millis%1000)
-        seconds=int((frame_millis/1000)%60)
-        minutes=int((frame_millis/(1000*60))%60)
-        hours=int((frame_millis/(1000*60*60))%24)
-        timestamp = str(hours) + ":" + str(minutes) + ":" + str(seconds) + "." + str(millis)
+        millis = int(frame_millis % 1000)
+        seconds = int((frame_millis / 1000) % 60)
+        minutes = int((frame_millis / (1000 * 60)) % 60)
+        hours = int((frame_millis / (1000 * 60 * 60)) % 24)
+        timestamp = (
+            str(hours) + ":" + str(minutes) + ":" + str(seconds) + "." + str(millis)
+        )
 
         cmd = f'/usr/bin/ffmpeg -y -ss "{timestamp}" -i {v_in} -frames:v 1 -update 1 {f_out}'
         print(cmd)
         try:
             subprocess.run(cmd, shell=True)
             return True
-        except:
+        except Exception:
             print("FFMPEG failed to grab a frame")
             return False
 
 
 class SlowMovie:
     def __init__(self, config_yaml: str | None = None, working_dir: str | None = None):
-        '''
+        """
         Get framecount (minus one for zero index:
         ffmpeg -i input.mp4 -map 0:v:0 -c copy -f null -
-        '''
+        """
         self.working_dir = working_dir or os.path.dirname(os.path.realpath(__file__))
 
-        with open(config_yaml or os.path.join(self.working_dir, 'slowmovie-config.yml'), 'r') as file:
+        with open(
+            config_yaml or os.path.join(self.working_dir, "slowmovie-config.yml"), "r"
+        ) as file:
             config = yaml.safe_load(file)
 
-        self.prefix = config['movie'].get('prefix', 'frame') # Optional YAML value for naming files
-        self.frame_divisor = config['movie'].get('frame_divisor', 5) # Optional YAML value for number of frames to skip each run
-        self.screens = config['screen_sizes']
+        self.prefix = config["movie"].get(
+            "prefix", "frame"
+        )  # Optional YAML value for naming files
+        self.frame_divisor = config["movie"].get(
+            "frame_divisor", 5
+        )  # Optional YAML value for number of frames to skip each run
+        self.screens = config["screen_sizes"]
 
-        self.video = SourceVideo(config['movie']['video_file'], self.prefix, self.working_dir)
+        self.video = SourceVideo(
+            config["movie"]["video_file"], self.prefix, self.working_dir
+        )
 
-        #Don't edit these:
-        self.framecount_json = os.path.join(self.working_dir, f"{self.prefix}_count.json")
+        # Don't edit these:
+        self.framecount_json = os.path.join(
+            self.working_dir, f"{self.prefix}_count.json"
+        )
 
     async def process_next_frame(self):
-        '''
+        """
         Workflow:
         * lookup next frame number
         * grab frame
@@ -107,36 +141,42 @@ class SlowMovie:
         * flip endianness and invert
         * publish to MQTT
         * increment framecount and save back to json
-        '''
+        """
 
-        #Import JSON
+        # Import JSON
         framecount = self.get_saved_frame_count(self.framecount_json)
         if framecount is None:
-            #Error getting JSON, try to generate a new one
+            # Error getting JSON, try to generate a new one
             print("Trying to generate new JSON file")
-            framecount = {'totalframes': self.video.total_frames, 'nextframe': 0}
+            framecount = {"totalframes": self.video.total_frames, "nextframe": 0}
             if not self.save_frame_count(self.framecount_json, framecount):
                 print("Abort: JSON file cannot be saved")
                 return
 
-        #Grab next frame
-        if not self.video.harvest_frame(framecount['nextframe']):
+        # Grab next frame
+        if not self.video.harvest_frame(framecount["nextframe"]):
             print("Abort: Unable to grab next frame from video")
             return
 
-        #Convert to PBM
+        # Convert to PBM
         conversion_count = 0
         for screen in self.screens:
-            outfile = os.path.join(self.working_dir, f"{self.prefix}-{screen['name']}.pbm")
-            if not self.convert_to_pbm(self.video.frame_capture, outfile, screen['x'], screen['y']):
-                print(f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}")
+            outfile = os.path.join(
+                self.working_dir, f"{self.prefix}-{screen['name']}.pbm"
+            )
+            if not self.convert_to_pbm(
+                self.video.frame_capture, outfile, screen["x"], screen["y"]
+            ):
+                print(
+                    f"Abort: Unable to convert captured frame to XBM for screen: {screen['name']}"
+                )
             else:
                 conversion_count += 1
         if conversion_count == 0:
             print("Abort: Unable to convert captured frame to any supplied screen size")
             return
 
-        #Publish frame to Golioth
+        # Publish frame to Golioth
         c = Client(api_key=credentials.api_key)
         projs = await c.get_projects()
         p = projs[0]
@@ -150,7 +190,9 @@ class SlowMovie:
         next_ver = newest.bump_patch()
 
         try:
-            art = await p.artifacts.upload(Path('frame-800x480.pbm'), str(next_ver), 'frame')
+            art = await p.artifacts.upload(
+                Path("frame-800x480.pbm"), str(next_ver), "frame"
+            )
             await p.settings.set("FRAME", f"/.u/c/frame@{str(next_ver)}")
         except Exception as e:
             print(f"Failed to upload frame: {str(e)}")
@@ -158,22 +200,22 @@ class SlowMovie:
 
         try:
             for a in artifacts:
-                if a.package == 'frame' and a != art:
+                if a.package == "frame" and a != art:
                     await p.artifacts.delete(a.id)
         except Exception as e:
             print(f"Failed to delete frame: {str(e)}")
             return
 
-        #Increment framecount and save
-        framecount['nextframe'] += self.frame_divisor
-        if framecount['nextframe'] >= framecount['totalframes']:
-            framecount['nextframe'] = 0
+        # Increment framecount and save
+        framecount["nextframe"] += self.frame_divisor
+        if framecount["nextframe"] >= framecount["totalframes"]:
+            framecount["nextframe"] = 0
         if not self.save_frame_count(self.framecount_json, framecount):
             print("Abort: failed to save new framecount")
             return
 
     def get_saved_frame_count(self, jsonfile):
-        #Import JSON to get next frame count
+        # Import JSON to get next frame count
         try:
             with open(jsonfile) as f:
                 framecount = json.load(f)
@@ -182,11 +224,10 @@ class SlowMovie:
             return None
         return framecount
 
-
     def save_frame_count(self, jsonfile, count_dict):
-        #Export JSON for frame count
+        # Export JSON for frame count
         try:
-            with open(jsonfile, 'w') as f:
+            with open(jsonfile, "w") as f:
                 json.dump(count_dict, f)
             print("Successfully generated JSON file")
         except Exception:
@@ -194,13 +235,20 @@ class SlowMovie:
             return False
         return True
 
-    def convert_to_pbm(self, input_image: str, output_image: str, x_size: int, y_size: int, rotate: int = 0) -> bool:
+    def convert_to_pbm(
+        self,
+        input_image: str,
+        output_image: str,
+        x_size: int,
+        y_size: int,
+        rotate: int = 0,
+    ) -> bool:
         cmd = (
-                f'magick {input_image} -gravity center +repage -rotate {rotate} '
-                f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
-                f'-background black -extent "{x_size}x{y_size}" -gamma 1.2 -colorspace Gray '
-                f'-dither FloydSteinberg -colors 2 -negate {output_image}'
-            )
+            f"magick {input_image} -gravity center +repage -rotate {rotate} "
+            f'-resize "{x_size}x{y_size}" -gravity center -crop {x_size}x{y_size}+0+0 '
+            f'-background black -extent "{x_size}x{y_size}" -gamma 1.2 -colorspace Gray '
+            f"-dither FloydSteinberg -colors 2 -negate {output_image}"
+        )
         print(cmd)
 
         try:
@@ -210,9 +258,11 @@ class SlowMovie:
             print("Failed to convert image to XBM")
             return False
 
+
 async def main():
     frame_getter = SlowMovie()
     await frame_getter.process_next_frame()
+
 
 if __name__ == "__main__":
     anyio.run(main)

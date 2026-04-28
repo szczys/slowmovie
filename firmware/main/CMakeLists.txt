@@ -1,7 +1,8 @@
 set(srcs
     "epaper.cpp"
-    "credentials.c"
+    "compression.c"
     "console.c"
+    "credentials.c"
     "fw_update.c"
     "main.cpp"
     "golioth.c"

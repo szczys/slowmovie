@@ -4,6 +4,7 @@
 #include <golioth/ota.h>
 #include <golioth/settings.h>
 #include <string.h>
+#include "compression.h"
 #include "golioth.h"
 #include "fw_update.h"
 #include "version.h"
@@ -23,10 +24,13 @@ struct frame_context
     struct golioth_ota_component component;
     uint8_t *framebuffer;
     size_t framebuffer_data_len;
+    uint8_t *zzbuffer;
+    size_t zzbuffer_data_len;
     golioth_frame_cb_t cb;
 } golioth_frame_ctx;
 
-#define MSG_BUF_SIZE 50000
+#define FRAMEBUF_SIZE 50000
+#define ZZBUF_SIZE (FRAMEBUF_SIZE / 2)
 #define FRAME_MONITOR_STACK_SIZE 4096
 
 extern const uint8_t ca_pem_start[] asm("_binary_isrgrootx1_goliothrootx1_pem_start");
@@ -99,15 +103,15 @@ static enum golioth_status frame_block_cb(const struct golioth_ota_component *co
 
     struct frame_context *ctx = (struct frame_context *) arg;
     uint32_t offset = block_idx * negotiated_block_size;
-    if (MSG_BUF_SIZE < offset + block_buffer_len)
+    if (ZZBUF_SIZE < offset + block_buffer_len)
     {
-        ESP_LOGE(TAG, "Buffer overflow: %d > %d", offset + block_buffer_len, MSG_BUF_SIZE);
+        ESP_LOGE(TAG, "Buffer overflow: %d > %d", offset + block_buffer_len, ZZBUF_SIZE);
         return GOLIOTH_ERR_QUEUE_FULL;
     }
 
-    memcpy(ctx->framebuffer + offset, block_buffer, block_buffer_len);
-    ctx->framebuffer_data_len = offset + block_buffer_len;
-    ESP_LOGI(TAG, "Received: %d bytes", ctx->framebuffer_data_len);
+    memcpy(ctx->zzbuffer + offset, block_buffer, block_buffer_len);
+    ctx->zzbuffer_data_len = offset + block_buffer_len;
+    ESP_LOGI(TAG, "Received: %d bytes", ctx->zzbuffer_data_len);
 
     return GOLIOTH_OK;
 }
@@ -161,7 +165,7 @@ void frame_monitor_task(void *pvParameters)
         memcpy(ctx->component.uri, ctx->uri, GOLIOTH_OTA_MAX_COMPONENT_URI_LEN + 1);
         xSemaphoreGive(ctx->uri_setting_lock);
 
-        ctx->framebuffer_data_len = 0;
+        ctx->zzbuffer_data_len = 0;
 
         golioth_ota_download_component(ctx->client,
                                        &ctx->component,
@@ -174,8 +178,22 @@ void frame_monitor_task(void *pvParameters)
 
         if (true == ctx->display_update_needed)
         {
-            ctx->cb(ctx->framebuffer, ctx->framebuffer_data_len);
             ctx->display_update_needed = false;
+
+            ctx->framebuffer_data_len = FRAMEBUF_SIZE;
+            int err = decompress(ctx->zzbuffer,
+                                 ctx->zzbuffer_data_len,
+                                 ctx->framebuffer,
+                                 &ctx->framebuffer_data_len);
+
+            if (0 != err)
+            {
+                ESP_LOGE(TAG, "Failed to decompress image: %d", err);
+            }
+            else
+            {
+                ctx->cb(ctx->framebuffer, ctx->framebuffer_data_len);
+            }
         }
         xSemaphoreGive(ctx->component_lock);
     }
@@ -196,7 +214,14 @@ void golioth_register_frames(struct slowmovie_creds *creds, golioth_frame_cb_t c
     golioth_frame_ctx.dl_finished = xSemaphoreCreateBinary();
     golioth_frame_ctx.display_update_needed = false;
 
-    golioth_frame_ctx.framebuffer = (uint8_t *) malloc(MSG_BUF_SIZE);
+    golioth_frame_ctx.zzbuffer = (uint8_t *) malloc(ZZBUF_SIZE);
+    if (NULL == golioth_frame_ctx.zzbuffer)
+    {
+        ESP_LOGE(TAG, "Failed to allocate zzbuffer");
+        return;
+    }
+
+    golioth_frame_ctx.framebuffer = (uint8_t *) malloc(FRAMEBUF_SIZE);
     if (NULL == golioth_frame_ctx.framebuffer)
     {
         ESP_LOGE(TAG, "Failed to allocate framebuffer");

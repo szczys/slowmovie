@@ -22,6 +22,7 @@ import yaml
 import anyio
 import semver
 import sys
+import zlib
 from pathlib import Path
 from golioth import Client
 
@@ -176,6 +177,14 @@ class SlowMovie:
             print("Abort: Unable to convert captured frame to any supplied screen size")
             return
 
+        # Compress to ZZ
+        # FIXME: sections here and below are using hardcoded filenames and shouldn't
+        with open("frame-800x480.pbm", "rb") as f:
+            pbm_data = f.read()
+        compressed = zlib.compress(pbm_data, zlib.Z_BEST_COMPRESSION)
+        with open("frame-800x480.pbm.zz", "wb") as f:
+            f.write(compressed)
+
         # Publish frame to Golioth
         c = Client(api_key=credentials.api_key)
         projs = await c.get_projects()
@@ -191,7 +200,7 @@ class SlowMovie:
 
         try:
             art = await p.artifacts.upload(
-                Path("frame-800x480.pbm"), str(next_ver), "frame"
+                Path("frame-800x480.pbm.zz"), str(next_ver), "frame"
             )
             await p.settings.set("FRAME", f"/.u/c/frame@{str(next_ver)}")
         except Exception as e:

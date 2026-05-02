@@ -98,3 +98,16 @@ writing it to the ESP32s3 using esptool.py.
     ```
     esptool.py write_flash 0x9000 nvs.bin
     ```
+
+## Pin Connections
+
+| Driver Board Pin | ESP32-S3 Pin | Function |
+| :--- | :--- | :--- |
+| **3V3** | 3V3 | Power (3.3V) |
+| **GND** | GND | Ground |
+| **DC** | 5 | Data/Command |
+| **Busy** | 6 | Busy |
+| **MOSI** | 11 | SPI Data |
+| **CLK** | 12 | SPI Clock |
+| **CS** | 10 | Chip Select |
+| **RST** | 7 | Reset |

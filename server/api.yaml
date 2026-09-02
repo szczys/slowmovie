@@ -1,0 +1,230 @@
+openapi: 3.1.0
+info:
+  title: slowmovie
+  version: 0.0.1
+  description: Slowmovie server that serves frame and firmware binaries
+  x-fiddle-import-file: true
+paths:
+  /frames:
+    post:
+      tags:
+        - frame
+      summary: Publish new frame
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: PublishNewFrameCreated
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+          description: The request was successful, and a new resource was created.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      operationId: publishNewFrame
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: object
+        required: true
+        description: Publish a new frame and set it as the current frame
+  /status:
+    get:
+      summary: Get status
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: GetStatusOk
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+          description: The request was successful, and the server has returned the
+            requested resource in the response body.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      parameters: []
+      description: Version information for the most recently uploaded frame and
+        firmware binaries.
+      operationId: getStatus
+  /frames/{version}:
+    get:
+      tags:
+        - frame
+      summary: Get frame by version
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: GetFrameByVersionOk
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+          description: Frame matching the requested version was returned
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      parameters:
+        - $ref: "#/components/parameters/version"
+      operationId: getFrameByVersion
+  /firmware/{target}/{version}:
+    get:
+      tags:
+        - firmware
+      summary: Get firmware by target and version
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: GetFirmwareByTargetAndVersionOk
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+          description: Firmware matching the requested platform and version was returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      parameters:
+        - $ref: "#/components/parameters/target"
+        - $ref: "#/components/parameters/version"
+      operationId: getFirmwareByTargetAndVersion
+    post:
+      tags:
+        - firmware
+      summary: Publish new firmware
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: PublishNewFirmwareCreated
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+          description: Firmware successfully received and set as current release
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      parameters:
+        - $ref: "#/components/parameters/target"
+        - $ref: "#/components/parameters/version"
+      description: Publish a new firmware binary for the specified target and version.
+        This will be used as the currently available firmare version for this
+        platform.
+      operationId: publishNewFirmware
+components:
+  responses:
+    Conflict:
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+      description: The request could not be completed due to a conflict with the
+        current state of the resource. Resolve the conflict and try again.
+    NotFound:
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+      description: The server cannot find the requested resource. The endpoint may be
+        invalid or the resource may no longer exist.
+    BadRequest:
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              errors:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - message
+                  properties:
+                    message:
+                      type: string
+              message:
+                type: string
+      description: The server could not understand the request due to invalid syntax.
+        The client should modify the request and try again.
+    InternalServerErrror:
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+      description: The server encountered an unexpected condition that prevented it
+        from fulfilling the request. Report the issue to the support team if it
+        persists.
+  parameters:
+    target:
+      in: path
+      name: target
+      schema:
+        type: string
+      required: true
+      description: Device target for which the firmware was compiled
+    version:
+      in: path
+      name: version
+      schema:
+        type: string
+      required: true
+      description: Version of the firmware binary
+tags:
+  - name: firmware
+  - name: frame
+    description: ""
+  - name: status
+    description: Payload containing available frame and firmware binaries

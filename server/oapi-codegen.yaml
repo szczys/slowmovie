@@ -1,0 +1,7 @@
+package: api
+output: pkg/api/api.gen.go
+
+generate:
+  models: true
+  echo-server: true
+  strict-server: true

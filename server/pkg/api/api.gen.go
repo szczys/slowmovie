@@ -8,29 +8,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-
 	"github.com/labstack/echo/v4"
-	"github.com/oapi-codegen/runtime"
 )
-
-// Target defines model for target.
-type Target = string
-
-// Version defines model for version.
-type Version = string
 
 // BadRequest defines model for BadRequest.
 type BadRequest struct {
 	Errors *[]struct {
 		Message string `json:"message"`
 	} `json:"errors,omitempty"`
-	Message string `json:"message"`
-}
-
-// Conflict defines model for Conflict.
-type Conflict struct {
 	Message string `json:"message"`
 }
 
@@ -46,18 +32,6 @@ type NotFound struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// GetFirmwareByTargetAndVersion Get firmware by target and version
-	// (GET /firmware/{target}/{version})
-	GetFirmwareByTargetAndVersion(ctx echo.Context, target Target, version Version) error
-	// PublishNewFirmware Publish new firmware
-	// (POST /firmware/{target}/{version})
-	PublishNewFirmware(ctx echo.Context, target Target, version Version) error
-	// PublishNewFrame Publish new frame
-	// (POST /frames)
-	PublishNewFrame(ctx echo.Context) error
-	// GetFrameByVersion Get frame by version
-	// (GET /frames/{version})
-	GetFrameByVersion(ctx echo.Context, version Version) error
 	// GetStatus Get status
 	// (GET /status)
 	GetStatus(ctx echo.Context) error
@@ -66,79 +40,6 @@ type ServerInterface interface {
 // ServerInterfaceWrapper converts echo contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler ServerInterface
-}
-
-// GetFirmwareByTargetAndVersion converts echo context to params.
-func (w *ServerInterfaceWrapper) GetFirmwareByTargetAndVersion(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "target" -------------
-	var target Target
-
-	err = runtime.BindStyledParameterWithOptions("simple", "target", ctx.Param("target"), &target, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter target: %s", err))
-	}
-
-	// ------------- Path parameter "version" -------------
-	var version Version
-
-	err = runtime.BindStyledParameterWithOptions("simple", "version", ctx.Param("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter version: %s", err))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetFirmwareByTargetAndVersion(ctx, target, version)
-	return err
-}
-
-// PublishNewFirmware converts echo context to params.
-func (w *ServerInterfaceWrapper) PublishNewFirmware(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "target" -------------
-	var target Target
-
-	err = runtime.BindStyledParameterWithOptions("simple", "target", ctx.Param("target"), &target, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter target: %s", err))
-	}
-
-	// ------------- Path parameter "version" -------------
-	var version Version
-
-	err = runtime.BindStyledParameterWithOptions("simple", "version", ctx.Param("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter version: %s", err))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PublishNewFirmware(ctx, target, version)
-	return err
-}
-
-// PublishNewFrame converts echo context to params.
-func (w *ServerInterfaceWrapper) PublishNewFrame(ctx echo.Context) error {
-	var err error
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PublishNewFrame(ctx)
-	return err
-}
-
-// GetFrameByVersion converts echo context to params.
-func (w *ServerInterfaceWrapper) GetFrameByVersion(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "version" -------------
-	var version Version
-
-	err = runtime.BindStyledParameterWithOptions("simple", "version", ctx.Param("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter version: %s", err))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetFrameByVersion(ctx, version)
-	return err
 }
 
 // GetStatus converts echo context to params.
@@ -197,11 +98,7 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 		Handler: si,
 	}
 
-	router.POST(options.BaseURL+"/frames", wrapper.PublishNewFrame, options.OperationMiddlewares["publishNewFrame"]...)
 	router.GET(options.BaseURL+"/status", wrapper.GetStatus, options.OperationMiddlewares["getStatus"]...)
-	router.GET(options.BaseURL+"/frames/:version", wrapper.GetFrameByVersion, options.OperationMiddlewares["getFrameByVersion"]...)
-	router.GET(options.BaseURL+"/firmware/:target/:version", wrapper.GetFirmwareByTargetAndVersion, options.OperationMiddlewares["getFirmwareByTargetAndVersion"]...)
-	router.POST(options.BaseURL+"/firmware/:target/:version", wrapper.PublishNewFirmware, options.OperationMiddlewares["publishNewFirmware"]...)
 
 }
 
@@ -212,276 +109,12 @@ type BadRequestJSONResponse struct {
 	Message string `json:"message"`
 }
 
-type ConflictJSONResponse struct {
-	Message string `json:"message"`
-}
-
 type InternalServerErrrorJSONResponse struct {
 	Message string `json:"message"`
 }
 
 type NotFoundJSONResponse struct {
 	Message string `json:"message"`
-}
-
-type GetFirmwareByTargetAndVersionRequestObject struct {
-	Target  Target  `json:"target"`
-	Version Version `json:"version"`
-}
-
-type GetFirmwareByTargetAndVersionResponseObject interface {
-	VisitGetFirmwareByTargetAndVersionResponse(w http.ResponseWriter) error
-}
-
-type GetFirmwareByTargetAndVersion200JSONResponse struct {
-	Data map[string]interface{} `json:"data"`
-}
-
-func (response GetFirmwareByTargetAndVersion200JSONResponse) VisitGetFirmwareByTargetAndVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFirmwareByTargetAndVersion400JSONResponse struct{ BadRequestJSONResponse }
-
-func (response GetFirmwareByTargetAndVersion400JSONResponse) VisitGetFirmwareByTargetAndVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFirmwareByTargetAndVersion404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response GetFirmwareByTargetAndVersion404JSONResponse) VisitGetFirmwareByTargetAndVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFirmwareByTargetAndVersion500JSONResponse struct {
-	InternalServerErrrorJSONResponse
-}
-
-func (response GetFirmwareByTargetAndVersion500JSONResponse) VisitGetFirmwareByTargetAndVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishNewFirmwareRequestObject struct {
-	Target  Target  `json:"target"`
-	Version Version `json:"version"`
-}
-
-type PublishNewFirmwareResponseObject interface {
-	VisitPublishNewFirmwareResponse(w http.ResponseWriter) error
-}
-
-type PublishNewFirmware201JSONResponse struct {
-	Data map[string]interface{} `json:"data"`
-}
-
-func (response PublishNewFirmware201JSONResponse) VisitPublishNewFirmwareResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishNewFirmware400JSONResponse struct{ BadRequestJSONResponse }
-
-func (response PublishNewFirmware400JSONResponse) VisitPublishNewFirmwareResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishNewFirmware409JSONResponse struct{ ConflictJSONResponse }
-
-func (response PublishNewFirmware409JSONResponse) VisitPublishNewFirmwareResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishNewFirmware500JSONResponse struct {
-	InternalServerErrrorJSONResponse
-}
-
-func (response PublishNewFirmware500JSONResponse) VisitPublishNewFirmwareResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishNewFrameRequestObject struct {
-	Body io.Reader
-}
-
-type PublishNewFrameResponseObject interface {
-	VisitPublishNewFrameResponse(w http.ResponseWriter) error
-}
-
-type PublishNewFrame201JSONResponse struct {
-	Data map[string]interface{} `json:"data"`
-}
-
-func (response PublishNewFrame201JSONResponse) VisitPublishNewFrameResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishNewFrame400JSONResponse struct{ BadRequestJSONResponse }
-
-func (response PublishNewFrame400JSONResponse) VisitPublishNewFrameResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishNewFrame500JSONResponse struct {
-	InternalServerErrrorJSONResponse
-}
-
-func (response PublishNewFrame500JSONResponse) VisitPublishNewFrameResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFrameByVersionRequestObject struct {
-	Version Version `json:"version"`
-}
-
-type GetFrameByVersionResponseObject interface {
-	VisitGetFrameByVersionResponse(w http.ResponseWriter) error
-}
-
-type GetFrameByVersion200JSONResponse struct {
-	Data map[string]interface{} `json:"data"`
-}
-
-func (response GetFrameByVersion200JSONResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFrameByVersion400JSONResponse struct{ BadRequestJSONResponse }
-
-func (response GetFrameByVersion400JSONResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFrameByVersion404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response GetFrameByVersion404JSONResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFrameByVersion500JSONResponse struct {
-	InternalServerErrrorJSONResponse
-}
-
-func (response GetFrameByVersion500JSONResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
 }
 
 type GetStatusRequestObject struct {
@@ -553,18 +186,6 @@ func (response GetStatus500JSONResponse) VisitGetStatusResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// GetFirmwareByTargetAndVersion Get firmware by target and version
-	// (GET /firmware/{target}/{version})
-	GetFirmwareByTargetAndVersion(ctx context.Context, request GetFirmwareByTargetAndVersionRequestObject) (GetFirmwareByTargetAndVersionResponseObject, error)
-	// PublishNewFirmware Publish new firmware
-	// (POST /firmware/{target}/{version})
-	PublishNewFirmware(ctx context.Context, request PublishNewFirmwareRequestObject) (PublishNewFirmwareResponseObject, error)
-	// PublishNewFrame Publish new frame
-	// (POST /frames)
-	PublishNewFrame(ctx context.Context, request PublishNewFrameRequestObject) (PublishNewFrameResponseObject, error)
-	// GetFrameByVersion Get frame by version
-	// (GET /frames/{version})
-	GetFrameByVersion(ctx context.Context, request GetFrameByVersionRequestObject) (GetFrameByVersionResponseObject, error)
 	// GetStatus Get status
 	// (GET /status)
 	GetStatus(ctx context.Context, request GetStatusRequestObject) (GetStatusResponseObject, error)
@@ -580,108 +201,6 @@ func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareF
 type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
-}
-
-// GetFirmwareByTargetAndVersion operation middleware
-func (sh *strictHandler) GetFirmwareByTargetAndVersion(ctx echo.Context, target Target, version Version) error {
-	var request GetFirmwareByTargetAndVersionRequestObject
-
-	request.Target = target
-	request.Version = version
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.GetFirmwareByTargetAndVersion(ctx.Request().Context(), request.(GetFirmwareByTargetAndVersionRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetFirmwareByTargetAndVersion")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(GetFirmwareByTargetAndVersionResponseObject); ok {
-		return validResponse.VisitGetFirmwareByTargetAndVersionResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// PublishNewFirmware operation middleware
-func (sh *strictHandler) PublishNewFirmware(ctx echo.Context, target Target, version Version) error {
-	var request PublishNewFirmwareRequestObject
-
-	request.Target = target
-	request.Version = version
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.PublishNewFirmware(ctx.Request().Context(), request.(PublishNewFirmwareRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PublishNewFirmware")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(PublishNewFirmwareResponseObject); ok {
-		return validResponse.VisitPublishNewFirmwareResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// PublishNewFrame operation middleware
-func (sh *strictHandler) PublishNewFrame(ctx echo.Context) error {
-	var request PublishNewFrameRequestObject
-
-	request.Body = ctx.Request().Body
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.PublishNewFrame(ctx.Request().Context(), request.(PublishNewFrameRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PublishNewFrame")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(PublishNewFrameResponseObject); ok {
-		return validResponse.VisitPublishNewFrameResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// GetFrameByVersion operation middleware
-func (sh *strictHandler) GetFrameByVersion(ctx echo.Context, version Version) error {
-	var request GetFrameByVersionRequestObject
-
-	request.Version = version
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.GetFrameByVersion(ctx.Request().Context(), request.(GetFrameByVersionRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetFrameByVersion")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(GetFrameByVersionResponseObject); ok {
-		return validResponse.VisitGetFrameByVersionResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
 }
 
 // GetStatus operation middleware

@@ -5,36 +5,6 @@ info:
   description: Slowmovie server that serves frame and firmware binaries
   x-fiddle-import-file: true
 paths:
-  /frames:
-    post:
-      tags:
-        - frame
-      summary: Publish new frame
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                type: object
-                title: PublishNewFrameCreated
-                required:
-                  - data
-                properties:
-                  data:
-                    type: object
-          description: The request was successful, and a new resource was created.
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalServerErrror"
-      operationId: publishNewFrame
-      requestBody:
-        content:
-          application/octet-stream:
-            schema:
-              type: object
-        required: true
-        description: Publish a new frame and set it as the current frame
   /status:
     get:
       summary: Get status
@@ -62,91 +32,6 @@ paths:
       description: Version information for the most recently uploaded frame and
         firmware binaries.
       operationId: getStatus
-  /frames/{version}:
-    get:
-      tags:
-        - frame
-      summary: Get frame by version
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                type: object
-                title: GetFrameByVersionOk
-                required:
-                  - data
-                properties:
-                  data:
-                    type: object
-          description: Frame matching the requested version was returned
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalServerErrror"
-      parameters:
-        - $ref: "#/components/parameters/version"
-      operationId: getFrameByVersion
-  /firmware/{target}/{version}:
-    get:
-      tags:
-        - firmware
-      summary: Get firmware by target and version
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                type: object
-                title: GetFirmwareByTargetAndVersionOk
-                required:
-                  - data
-                properties:
-                  data:
-                    type: object
-          description: Firmware matching the requested platform and version was returned.
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/InternalServerErrror"
-      parameters:
-        - $ref: "#/components/parameters/target"
-        - $ref: "#/components/parameters/version"
-      operationId: getFirmwareByTargetAndVersion
-    post:
-      tags:
-        - firmware
-      summary: Publish new firmware
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                type: object
-                title: PublishNewFirmwareCreated
-                required:
-                  - data
-                properties:
-                  data:
-                    type: object
-          description: Firmware successfully received and set as current release
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "500":
-          $ref: "#/components/responses/InternalServerErrror"
-      parameters:
-        - $ref: "#/components/parameters/target"
-        - $ref: "#/components/parameters/version"
-      description: Publish a new firmware binary for the specified target and version.
-        This will be used as the currently available firmare version for this
-        platform.
-      operationId: publishNewFirmware
 components:
   responses:
     Conflict:

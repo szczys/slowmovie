@@ -8,7 +8,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+
 	"github.com/labstack/echo/v4"
 )
 
@@ -32,6 +34,9 @@ type NotFound struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// PublishNewFrame Publish new frame
+	// (POST /frames)
+	PublishNewFrame(ctx echo.Context) error
 	// GetStatus Get status
 	// (GET /status)
 	GetStatus(ctx echo.Context) error
@@ -40,6 +45,15 @@ type ServerInterface interface {
 // ServerInterfaceWrapper converts echo contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler ServerInterface
+}
+
+// PublishNewFrame converts echo context to params.
+func (w *ServerInterfaceWrapper) PublishNewFrame(ctx echo.Context) error {
+	var err error
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.PublishNewFrame(ctx)
+	return err
 }
 
 // GetStatus converts echo context to params.
@@ -98,6 +112,7 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 		Handler: si,
 	}
 
+	router.POST(options.BaseURL+"/frames", wrapper.PublishNewFrame, options.OperationMiddlewares["publishNewFrame"]...)
 	router.GET(options.BaseURL+"/status", wrapper.GetStatus, options.OperationMiddlewares["getStatus"]...)
 
 }
@@ -115,6 +130,60 @@ type InternalServerErrrorJSONResponse struct {
 
 type NotFoundJSONResponse struct {
 	Message string `json:"message"`
+}
+
+type PublishNewFrameRequestObject struct {
+	Body io.Reader
+}
+
+type PublishNewFrameResponseObject interface {
+	VisitPublishNewFrameResponse(w http.ResponseWriter) error
+}
+
+type PublishNewFrame201JSONResponse struct {
+	Data map[string]interface{} `json:"data"`
+}
+
+func (response PublishNewFrame201JSONResponse) VisitPublishNewFrameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishNewFrame400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PublishNewFrame400JSONResponse) VisitPublishNewFrameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishNewFrame500JSONResponse struct {
+	InternalServerErrrorJSONResponse
+}
+
+func (response PublishNewFrame500JSONResponse) VisitPublishNewFrameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetStatusRequestObject struct {
@@ -186,6 +255,9 @@ func (response GetStatus500JSONResponse) VisitGetStatusResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// PublishNewFrame Publish new frame
+	// (POST /frames)
+	PublishNewFrame(ctx context.Context, request PublishNewFrameRequestObject) (PublishNewFrameResponseObject, error)
 	// GetStatus Get status
 	// (GET /status)
 	GetStatus(ctx context.Context, request GetStatusRequestObject) (GetStatusResponseObject, error)
@@ -201,6 +273,31 @@ func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareF
 type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
+}
+
+// PublishNewFrame operation middleware
+func (sh *strictHandler) PublishNewFrame(ctx echo.Context) error {
+	var request PublishNewFrameRequestObject
+
+	request.Body = ctx.Request().Body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishNewFrame(ctx.Request().Context(), request.(PublishNewFrameRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishNewFrame")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(PublishNewFrameResponseObject); ok {
+		return validResponse.VisitPublishNewFrameResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
 }
 
 // GetStatus operation middleware

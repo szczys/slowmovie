@@ -5,6 +5,36 @@ info:
   description: Slowmovie server that serves frame and firmware binaries
   x-fiddle-import-file: true
 paths:
+  /frames:
+    post:
+      tags:
+        - frame
+      summary: Publish new frame
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: object
+                title: PublishNewFrameCreated
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+          description: The request was successful, and a new resource was created.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      operationId: publishNewFrame
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: object
+        required: true
+        description: Publish a new frame and set it as the current frame
   /status:
     get:
       summary: Get status

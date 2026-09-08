@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
+	"os"
 )
 
 type slowmovieCTX struct {
@@ -39,4 +41,23 @@ func NewServer() Server {
 func (Server) GetStatus(ctx context.Context, request GetStatusRequestObject) (GetStatusResponseObject, error) {
 	statusData, err := ConvertToMap(CTX)
 	return GetStatus200JSONResponse{Data: statusData}, err
+}
+
+func (Server) PublishNewFrame(ctx context.Context, request PublishNewFrameRequestObject) (PublishNewFrameResponseObject, error) {
+	framePath := filepath.Join(os.TempDir(), "frame.zz")
+
+	f, err := os.Create(framePath)
+	if err != nil {
+		return PublishNewFrame500JSONResponse{}, nil
+	}
+
+	defer f.Close()
+	if err != nil {
+		return PublishNewFrame500JSONResponse{}, nil
+	}
+
+	CTX.frameNum += 1
+	return PublishNewFrame201JSONResponse{
+		Data: map[string]any { "frameNum": CTX.frameNum },
+	}, err
 }

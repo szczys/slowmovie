@@ -62,6 +62,33 @@ paths:
       description: Version information for the most recently uploaded frame and
         firmware binaries.
       operationId: getStatus
+  /frames/{version}:
+    get:
+      tags:
+        - frame
+      summary: Get frame by version
+      responses:
+        "200":
+          content:
+            application/octet-stream:
+              schema:
+                type: object
+                title: GetFrameByVersionOk
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+          description: Frame matching the requested version was returned
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      parameters:
+        - $ref: "#/components/parameters/version"
+      operationId: getFrameByVersion
 components:
   responses:
     Conflict:

@@ -12,7 +12,11 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/oapi-codegen/runtime"
 )
+
+// Version defines model for version.
+type Version = string
 
 // BadRequest defines model for BadRequest.
 type BadRequest struct {
@@ -37,6 +41,9 @@ type ServerInterface interface {
 	// PublishNewFrame Publish new frame
 	// (POST /frames)
 	PublishNewFrame(ctx echo.Context) error
+	// GetFrameByVersion Get frame by version
+	// (GET /frames/{version})
+	GetFrameByVersion(ctx echo.Context, version Version) error
 	// GetStatus Get status
 	// (GET /status)
 	GetStatus(ctx echo.Context) error
@@ -53,6 +60,22 @@ func (w *ServerInterfaceWrapper) PublishNewFrame(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.PublishNewFrame(ctx)
+	return err
+}
+
+// GetFrameByVersion converts echo context to params.
+func (w *ServerInterfaceWrapper) GetFrameByVersion(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "version" -------------
+	var version Version
+
+	err = runtime.BindStyledParameterWithOptions("simple", "version", ctx.Param("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter version: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetFrameByVersion(ctx, version)
 	return err
 }
 
@@ -114,6 +137,7 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 
 	router.POST(options.BaseURL+"/frames", wrapper.PublishNewFrame, options.OperationMiddlewares["publishNewFrame"]...)
 	router.GET(options.BaseURL+"/status", wrapper.GetStatus, options.OperationMiddlewares["getStatus"]...)
+	router.GET(options.BaseURL+"/frames/:version", wrapper.GetFrameByVersion, options.OperationMiddlewares["getFrameByVersion"]...)
 
 }
 
@@ -175,6 +199,78 @@ type PublishNewFrame500JSONResponse struct {
 }
 
 func (response PublishNewFrame500JSONResponse) VisitPublishNewFrameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFrameByVersionRequestObject struct {
+	Version Version `json:"version"`
+}
+
+type GetFrameByVersionResponseObject interface {
+	VisitGetFrameByVersionResponse(w http.ResponseWriter) error
+}
+
+type GetFrameByVersion200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetFrameByVersion200ApplicationoctetStreamResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetFrameByVersion400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetFrameByVersion400JSONResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFrameByVersion404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetFrameByVersion404JSONResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFrameByVersion500JSONResponse struct {
+	InternalServerErrrorJSONResponse
+}
+
+func (response GetFrameByVersion500JSONResponse) VisitGetFrameByVersionResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -258,6 +354,9 @@ type StrictServerInterface interface {
 	// PublishNewFrame Publish new frame
 	// (POST /frames)
 	PublishNewFrame(ctx context.Context, request PublishNewFrameRequestObject) (PublishNewFrameResponseObject, error)
+	// GetFrameByVersion Get frame by version
+	// (GET /frames/{version})
+	GetFrameByVersion(ctx context.Context, request GetFrameByVersionRequestObject) (GetFrameByVersionResponseObject, error)
 	// GetStatus Get status
 	// (GET /status)
 	GetStatus(ctx context.Context, request GetStatusRequestObject) (GetStatusResponseObject, error)
@@ -294,6 +393,31 @@ func (sh *strictHandler) PublishNewFrame(ctx echo.Context) error {
 		return err
 	} else if validResponse, ok := response.(PublishNewFrameResponseObject); ok {
 		return validResponse.VisitPublishNewFrameResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// GetFrameByVersion operation middleware
+func (sh *strictHandler) GetFrameByVersion(ctx echo.Context, version Version) error {
+	var request GetFrameByVersionRequestObject
+
+	request.Version = version
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFrameByVersion(ctx.Request().Context(), request.(GetFrameByVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFrameByVersion")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GetFrameByVersionResponseObject); ok {
+		return validResponse.VisitGetFrameByVersionResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}

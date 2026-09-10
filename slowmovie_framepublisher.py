@@ -15,24 +15,13 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-import subprocess
 import json
 import os
-import yaml
-import anyio
-import semver
+import requests
+import subprocess
 import sys
+import yaml
 import zlib
-from pathlib import Path
-from golioth import Client
-
-import credentials
-
-"""
-An API key for Golioth is required. Create a file called credentials.py and populate its contest as follows:
-
-api_key = "your_golioth_project_api_key"
-"""
 
 
 class SourceVideo:
@@ -133,14 +122,14 @@ class SlowMovie:
             self.working_dir, f"{self.prefix}_count.json"
         )
 
-    async def process_next_frame(self):
+    def process_next_frame(self):
         """
         Workflow:
         * lookup next frame number
         * grab frame
-        * convert to XBM
+        * convert to PBM
         * flip endianness and invert
-        * publish to MQTT
+        * publish to Go server
         * increment framecount and save back to json
         """
 
@@ -185,35 +174,17 @@ class SlowMovie:
         with open("frame-800x480.pbm.zz", "wb") as f:
             f.write(compressed)
 
-        # Publish frame to Golioth
-        c = Client(api_key=credentials.api_key)
-        projs = await c.get_projects()
-        p = projs[0]
-        artifacts = await p.artifacts.get_all()
-        newest = semver.Version.parse("0.0.0")
-        for a in artifacts:
-            test_ver = semver.Version.parse(a.version)
-            if test_ver > newest:
-                newest = test_ver
+        # Publish frame to Go server
+        url = "http://localhost:8123/frames"
 
-        next_ver = newest.bump_patch()
+        headers = {
+            "Content-Type": "application/octet-stream",
+        }
 
-        try:
-            art = await p.artifacts.upload(
-                Path("frame-800x480.pbm.zz"), str(next_ver), "frame"
-            )
-            await p.settings.set("FRAME", f"/.u/c/frame@{str(next_ver)}")
-        except Exception as e:
-            print(f"Failed to upload frame: {str(e)}")
-            return
+        with open("frame-800x480.pbm.zz", "rb") as file_data:
+            response = requests.post(url, headers=headers, data=file_data)
 
-        try:
-            for a in artifacts:
-                if a.package == "frame" and a != art:
-                    await p.artifacts.delete(a.id)
-        except Exception as e:
-            print(f"Failed to delete frame: {str(e)}")
-            return
+        print(f"Status Code: {response.status_code} Response: ", response.json())
 
         # Increment framecount and save
         framecount["nextframe"] += self.frame_divisor
@@ -270,8 +241,8 @@ class SlowMovie:
 
 async def main():
     frame_getter = SlowMovie()
-    await frame_getter.process_next_frame()
+    frame_getter.process_next_frame()
 
 
 if __name__ == "__main__":
-    anyio.run(main)
+    main()

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"os"
@@ -25,14 +24,11 @@ var CTX = slowmovieCTX{
 type Server struct{}
 
 func ConvertToMap(v any) (map[string]any, error) {
-	jsonData, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
+	mapData := make(map[string]any)
+	if CTX.frameNum > 0 {
+		mapData["frameNum"] = CTX.frameNum
 	}
-
-	var mapData map[string]any
-	err = json.Unmarshal(jsonData, &mapData)
-	return mapData, err
+	return mapData, nil
 }
 
 func NewServer() Server {
